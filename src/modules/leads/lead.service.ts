@@ -4,12 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Prisma } from '@prisma/client';
-import { LEAD_CREATED, LeadCreatedEvent } from '../../common/events/app-events';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/auth.types';
+import { DistributionService } from '../distribution/distribution.service';
 import {
   ChangeStatusDto,
   CreateLeadDto,
@@ -25,7 +24,7 @@ export class LeadService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-    private readonly events: EventEmitter2,
+    private readonly distribution: DistributionService,
   ) {}
 
   /** Cria o lead e o primeiro registro de histórico (null -> NEW), atômico. */
@@ -69,14 +68,24 @@ export class LeadService {
       resourceId: lead.id,
     });
 
-    // Dispara a distribuição automática (fire-and-forget). Roda no mesmo
-    // contexto async, então a RLS continua enxergando o tenant. Se não
-    // houver fila ou a distribuição estiver desligada, o listener ignora.
+    // Distribuição automática SÍNCRONA (não via evento). Roda dentro da
+    // mesma requisição, então a RLS enxerga o tenant e a resposta já volta
+    // com o lead distribuído. É não-fatal: se a distribuição falhar, o lead
+    // continua criado e pode ser distribuído manualmente. (autoDistribute
+    // respeita a flag distributionEnabled da fila e nunca lança.)
     if (lead.currentQueueId) {
-      this.events.emit(LEAD_CREATED, {
-        leadId: lead.id,
-        actor: user,
-      } satisfies LeadCreatedEvent);
+      try {
+        await this.distribution.autoDistribute(user, lead.id);
+        const refreshed = await this.prisma.client.lead.findUnique({
+          where: { id: lead.id },
+        });
+        if (refreshed) {
+          return serializeLead(refreshed, canSeeSensitive(user), canSeeContact(user));
+        }
+      } catch {
+        // Não-fatal: o lead já está criado. Devolve o lead como está (NEW);
+        // ele pode ser distribuído manualmente pela fila.
+      }
     }
 
     return serializeLead(lead, canSeeSensitive(user), canSeeContact(user));
@@ -84,6 +93,10 @@ export class LeadService {
 
   /** Lista paginada, JÁ filtrada pelo escopo do perfil. CPF sempre mascarado. */
   async list(user: AuthenticatedUser, q: ListLeadsQuery) {
+    // Telefone é armazenado só com dígitos (+E.164); se a busca contém
+    // dígitos, compara contra a versão sem máscara — "(21) 98888-7777"
+    // precisa achar "+5521988887777".
+    const searchDigits = q.search?.replace(/\D/g, '') ?? '';
     const where: Prisma.LeadWhereInput = {
       ...leadScopeWhere(user),
       ...(q.status ? { status: q.status } : {}),
@@ -91,7 +104,7 @@ export class LeadService {
         ? {
             OR: [
               { name: { contains: q.search, mode: 'insensitive' } },
-              { phone: { contains: q.search } },
+              { phone: { contains: searchDigits || q.search } },
             ],
           }
         : {}),

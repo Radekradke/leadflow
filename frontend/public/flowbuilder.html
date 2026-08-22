@@ -436,10 +436,68 @@ const STATE = {
   unsaved: false,
 };
 
-const CORRETORES = ['Marcos Vieira','Priya Nair','Lucas Mota','Sofia Pires','Juliana Rocha'];
-const FILAS = ['Nova Iguaçu - Leads #612','(Márcio) - Daniel #615','(Márcio) Gerente 3 #616','(Márcio) - Wellington Silva #614','Nova Iguaçu - Leads automação #613'];
+// Amostras de fallback (usadas só quando o builder abre fora do app /
+// sem sessão). Dentro do LeadFlow, loadRealData() troca por dados reais.
+let CORRETORES = ['Marcos Vieira','Priya Nair','Lucas Mota','Sofia Pires','Juliana Rocha'];
+let FILAS = ['Nova Iguaçu - Leads #612','(Márcio) - Daniel #615','(Márcio) Gerente 3 #616','(Márcio) - Wellington Silva #614','Nova Iguaçu - Leads automação #613'];
+let QUEUES = [];                 // objetos reais {id, name, distributionStrategy, ...}
+let QUEUE_ID_BY_NAME = {};       // nome da fila -> id real (p/ salvar a estratégia)
 const RAND_COLORS = ['#a78bfa','#3b82f6','#22d3a0','#f59e0b','#f472b6','#f87171'];
 const RAND_CLASSES = ['purple','accent','green','amber','pink','red'];
+const STRATEGY_OPTS = [['ROUND_ROBIN','Rodízio'],['LEAST_LOADED','Menos carregado'],['RANDOM','Aleatório']];
+
+// ── Ponte com a API do LeadFlow ────────────────────────────────
+// O app (React) passa a URL da API por querystring (?api=...). O token
+// CSRF fica no localStorage (mesma origem do app). Sem isso — ex.: abrir
+// /flowbuilder.html sozinho — as chamadas falham e mantemos as amostras.
+const API_BASE = (new URLSearchParams(location.search).get('api') || '/api').replace(/\/$/, '');
+function csrfToken() { try { return localStorage.getItem('leadflow.csrf') || ''; } catch (e) { return ''; } }
+async function apiGet(path) {
+  const r = await fetch(API_BASE + path, { credentials: 'include' });
+  if (!r.ok) throw new Error('GET ' + path + ' -> ' + r.status);
+  return r.json();
+}
+async function apiPatch(path, body) {
+  const r = await fetch(API_BASE + path, {
+    method: 'PATCH', credentials: 'include',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken() },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error('PATCH ' + path + ' -> ' + r.status);
+  return r.json();
+}
+
+// Carrega filas + corretores reais e reconcilia os nós já no canvas.
+async function loadRealData() {
+  try {
+    const [queues, brokers] = await Promise.all([apiGet('/queues'), apiGet('/brokers')]);
+    if (Array.isArray(queues) && queues.length) {
+      QUEUES = queues;
+      FILAS = queues.map(q => q.name);
+      QUEUE_ID_BY_NAME = {};
+      queues.forEach(q => { QUEUE_ID_BY_NAME[q.name] = q.id; });
+    }
+    if (Array.isArray(brokers) && brokers.length) {
+      CORRETORES = brokers.map(b => (b.user && b.user.name) || b.name).filter(Boolean);
+    }
+    // Nós de exemplo apontam para nomes antigos: remapeia para dados reais.
+    STATE.nodes.forEach(n => {
+      if (n.type !== 'fila') return;
+      if (!QUEUE_ID_BY_NAME[n.data.fila] && FILAS.length) n.data.fila = FILAS[0];
+      if (CORRETORES.length && !CORRETORES.includes(n.data.corretor)) n.data.corretor = CORRETORES[0];
+    });
+    populateFlowModalQueues();
+    renderCanvas();
+    toast('Filas e corretores reais carregados ✓');
+  } catch (e) {
+    console.warn('Flowbuilder: dados de exemplo (sem API/sessão):', e.message);
+  }
+}
+
+function populateFlowModalQueues() {
+  const sel = document.getElementById('nf-fila');
+  if (sel && FILAS.length) sel.innerHTML = FILAS.map(f => `<option>${f}</option>`).join('');
+}
 
 // ══════════════════════════════════════════════════════════════
 // NODE DEFINITIONS
@@ -453,7 +511,7 @@ function createNode(type, x, y) {
     rand: { title: 'Randomizador', color: '#a78bfa', icon: 'ti-percentage', colorClass: 'nc-rand',
       data: { outputs: [{ pct: 50 }, { pct: 50 }] } },
     fila: { title: 'Fila Escolhida', color: '#3b82f6', icon: 'ti-users', colorClass: 'nc-fila',
-      data: { fila: FILAS[0], corretor: CORRETORES[0] } },
+      data: { fila: FILAS[0], corretor: CORRETORES[0], strategy: 'ROUND_ROBIN' } },
     tag: { title: 'Adicionar Tag', color: '#f59e0b', icon: 'ti-tag', colorClass: 'nc-tag',
       data: { tag: 'Lead Novo' } },
     cond: { title: 'Condição', color: '#f472b6', icon: 'ti-git-branch', colorClass: 'nc-cond',
@@ -578,6 +636,12 @@ function renderNodeBody(node) {
         <div class="node-label">Corretor responsável</div>
         <select class="node-select" onchange="updateData('${node.id}','corretor',this.value)">
           ${CORRETORES.map(c=>`<option ${c===node.data.corretor?'selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
+      <div class="node-field">
+        <div class="node-label">Distribuição</div>
+        <select class="node-select" onchange="updateData('${node.id}','strategy',this.value)">
+          ${STRATEGY_OPTS.map(([v,l])=>`<option value="${v}" ${v===(node.data.strategy||'ROUND_ROBIN')?'selected':''}>${l}</option>`).join('')}
         </select>
       </div>`;
     case 'tag':
@@ -1087,10 +1151,33 @@ function markUnsaved() {
   document.getElementById('unsaved-badge').style.display='flex';
 }
 
-function saveFlow() {
+async function saveFlow() {
+  // Aplica de VERDADE a distribuição: para cada nó "Fila" vinculado a uma
+  // fila real, grava a estratégia escolhida via API. (O layout do grafo em
+  // si ainda não é persistido — próximo passo.)
+  const targets = [];
+  STATE.nodes.filter(n => n.type === 'fila').forEach(n => {
+    const qid = QUEUE_ID_BY_NAME[n.data.fila];
+    if (qid) targets.push({ id: qid, name: n.data.fila, strategy: n.data.strategy || 'ROUND_ROBIN' });
+  });
+
   STATE.unsaved = false;
-  document.getElementById('unsaved-badge').style.display='none';
-  toast('Fluxo salvo com sucesso ✓');
+  document.getElementById('unsaved-badge').style.display = 'none';
+
+  if (!targets.length) {
+    toast('Layout salvo. Nenhuma fila real vinculada para aplicar a distribuição.', 'warn');
+    return;
+  }
+
+  let ok = 0, fail = 0;
+  for (const t of targets) {
+    try {
+      await apiPatch('/distribution/queues/' + t.id + '/config', { strategy: t.strategy, enabled: true });
+      ok++;
+    } catch (e) { fail++; console.warn(e); }
+  }
+  if (fail === 0) toast(`Distribuição aplicada em ${ok} fila(s) ✓`);
+  else toast(`Aplicado em ${ok}, falhou em ${fail} (verifique login/permissão).`, 'warn');
 }
 
 function verifyFlow() {
@@ -1181,10 +1268,35 @@ function loadExample() {
 }
 
 // ══════════════════════════════════════════════════════════════
+// TOAST (feedback visual) — o protótipo chamava toast() em vários
+// lugares mas nunca a definiu; aqui está a implementação real.
+// ══════════════════════════════════════════════════════════════
+function toast(msg, type) {
+  const box = document.getElementById('toasts');
+  if (!box) return;
+  const el = document.createElement('div');
+  el.className = 'toast ' + (type === 'warn' ? 't-warn' : 't-ok');
+  el.textContent = msg;
+  box.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, 3200);
+}
+
+// ══════════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════════
 renderFlowList();
 loadExample();
+// Tenta carregar os dados reais; se a sessão ainda não estiver pronta
+// (corrida no primeiro load), tenta de novo mais algumas vezes.
+(async function initRealData() {
+  for (let i = 0; i < 4; i++) {
+    try {
+      const q = await apiGet('/queues');
+      if (Array.isArray(q) && q.length) { await loadRealData(); return; }
+    } catch (e) { /* sessão ainda não pronta */ }
+    await new Promise(r => setTimeout(r, 1200));
+  }
+})();
 </script>
 </body>
 </html>

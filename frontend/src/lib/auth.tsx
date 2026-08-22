@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { api, UNAUTHORIZED_EVENT } from './api';
+import { api, setCsrfToken, UNAUTHORIZED_EVENT } from './api';
 import type { CurrentUser } from './types';
 
 interface AuthState {
@@ -45,7 +45,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      await api.post('/auth/login', { email, password });
+      const res = await api.post<{ csrfToken?: string }>('/auth/login', {
+        email,
+        password,
+      });
+      if (res.csrfToken) setCsrfToken(res.csrfToken);
       await loadMe(); // recarrega o usuário + permissões a partir do cookie
     },
     [loadMe],
@@ -55,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await api.post('/auth/logout');
     } finally {
+      setCsrfToken(null);
       setUser(null);
     }
   }, []);

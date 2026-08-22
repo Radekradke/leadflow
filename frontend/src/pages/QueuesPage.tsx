@@ -21,7 +21,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { dateTime } from '../lib/format';
 import { AVAILABILITY, DIST_RESULT, STRATEGIES } from '../lib/labels';
-import type { BrokerProfile, DistributionLog, Queue, QueueMember } from '../lib/types';
+import type { AdRoute, BrokerProfile, DistributionLog, Queue, QueueMember } from '../lib/types';
 
 export default function QueuesPage() {
   const { can } = useAuth();

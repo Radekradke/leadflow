@@ -63,11 +63,19 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
    */
   async tx<T>(fn: (trx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
     const tenantId = this.tenantContext.getTenantId();
-    return this.base.$transaction(async (trx) => {
-      if (tenantId) {
-        await trx.$executeRaw`SELECT set_config('app.current_tenant', ${tenantId}, true)`;
-      }
-      return fn(trx);
-    });
+    return this.base.$transaction(
+      async (trx) => {
+        if (tenantId) {
+          await trx.$executeRaw`SELECT set_config('app.current_tenant', ${tenantId}, true)`;
+        }
+        return fn(trx);
+      },
+      // O default do Prisma (timeout 5s) estoura quando a API e o banco
+      // ficam em regiões diferentes (ex.: Render em Ohio, Neon em São
+      // Paulo): a distribuição faz ~12 queries sequenciais e cada
+      // ida-e-volta custa ~150ms. Limites maiores mantêm a atomicidade
+      // sem derrubar a transação por latência.
+      { maxWait: 10_000, timeout: 30_000 },
+    );
   }
 }

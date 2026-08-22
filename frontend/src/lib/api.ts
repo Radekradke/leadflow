@@ -27,6 +27,20 @@ function readCookie(name: string): string | null {
   return match ? decodeURIComponent(match.split('=')[1]) : null;
 }
 
+// Em produção (front na Vercel, API no Render) o cookie csrf_token pertence
+// ao domínio da API e o JS daqui NÃO consegue lê-lo. O backend devolve o
+// mesmo valor no corpo do login/refresh; guardamos e reenviamos no header.
+// localStorage sobrevive ao reload; o fallback readCookie cobre o dev
+// same-origin (proxy /api do Vite).
+const CSRF_STORAGE_KEY = 'leadflow.csrf';
+let csrfToken: string | null = localStorage.getItem(CSRF_STORAGE_KEY);
+
+export function setCsrfToken(token: string | null): void {
+  csrfToken = token;
+  if (token) localStorage.setItem(CSRF_STORAGE_KEY, token);
+  else localStorage.removeItem(CSRF_STORAGE_KEY);
+}
+
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 async function request<T>(
@@ -38,7 +52,7 @@ async function request<T>(
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
   if (MUTATING.has(method)) {
-    const csrf = readCookie('csrf_token');
+    const csrf = csrfToken ?? readCookie('csrf_token');
     if (csrf) headers['X-CSRF-Token'] = csrf;
   }
 

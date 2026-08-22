@@ -183,3 +183,11 @@ export interface AdRoute {
   queueId: string;
   queue?: { id: string; name: string };
 }
+
+export interface AdRoute {
+  id: string;
+  adSourceId: string;
+  label: string | null;
+  queueId: string;
+  queue?: { id: string; name: string };
+}

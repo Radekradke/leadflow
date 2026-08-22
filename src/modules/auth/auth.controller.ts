@@ -63,11 +63,12 @@ export class AuthController {
         dto.password,
       );
       const refreshToken = await this.refreshTokens.issue(user, meta);
-      setAuthCookies(res, {
-        accessToken,
-        refreshToken,
-        csrfToken: generateOpaqueToken(16),
-      });
+      // O csrfToken também volta no CORPO: com front e API em domínios
+      // diferentes (Vercel + Render), o JS não consegue ler o cookie
+      // csrf_token de outra origem. O guard continua comparando
+      // header == cookie — só muda de onde o front obtém o valor.
+      const csrfToken = generateOpaqueToken(16);
+      setAuthCookies(res, { accessToken, refreshToken, csrfToken });
 
       await this.audit.record({
         tenantId: user.tenantId,
@@ -78,7 +79,7 @@ export class AuthController {
         userAgent: meta.userAgent,
       });
 
-      return { user };
+      return { user, csrfToken };
     } catch (err) {
       // Registra a TENTATIVA falha. O e-mail tentado entra no metadata:
       // é necessário para detectar ataque (não é dado sensível como CPF).
@@ -111,12 +112,13 @@ export class AuthController {
     const user = await this.authService.loadById(rotated.userId);
     const accessToken = await this.authService.signAccessToken(user);
 
+    const csrfToken = generateOpaqueToken(16);
     setAuthCookies(res, {
       accessToken,
       refreshToken: rotated.token,
-      csrfToken: generateOpaqueToken(16),
+      csrfToken,
     });
-    return { user };
+    return { user, csrfToken };
   }
 
   /** Logout: revoga o refresh atual e limpa os cookies. */

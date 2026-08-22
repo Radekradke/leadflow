@@ -87,7 +87,7 @@ export class QueueController {
   @RequirePermissions('queue:read')
   @Get('ad-routes/all')
   listAdRoutes(@CurrentUser() user: AuthenticatedUser) {
-    return this.service.listAdRoutes(user);
+    return this.queues.listAdRoutes(user);
   }
 
   @RequirePermissions('queue:manage')
@@ -96,12 +96,12 @@ export class QueueController {
     @CurrentUser() user: AuthenticatedUser,
     @Body(new ZodValidationPipe(upsertAdRouteSchema)) dto: UpsertAdRouteDto,
   ) {
-    return this.service.upsertAdRoute(user, dto);
+    return this.queues.upsertAdRoute(user, dto);
   }
 
   @RequirePermissions('queue:manage')
   @Delete('ad-routes/:id')
   removeAdRoute(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.service.removeAdRoute(user, id);
+    return this.queues.removeAdRoute(user, id);
   }
 }

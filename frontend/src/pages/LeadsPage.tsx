@@ -14,10 +14,18 @@ import { LEAD_STATUS_META, type Lead, type Paginated, type Queue } from '../lib/
 import { useZodForm } from '../lib/forms';
 import { z } from 'zod';
 
-const ORIGINS = ['META_ADS', 'GOOGLE_ADS', 'WEBSITE', 'REFERRAL', 'PORTAL', 'WHATSAPP', 'OTHER'];
+// Valores do enum LeadOrigin do backend (prisma/schema.prisma) — precisam
+// bater 1:1, senão a criação de lead falha na validação.
+const ORIGINS = [
+  'SITE', 'LANDING_PAGE', 'WHATSAPP', 'INSTAGRAM', 'FACEBOOK_ADS',
+  'GOOGLE_ADS', 'REFERRAL', 'SALES_STAND', 'PHONE_CALL', 'MANUAL_IMPORT',
+  'INTEGRATION',
+];
 const ORIGIN_LABELS: Record<string, string> = {
-  META_ADS: 'Meta Ads', GOOGLE_ADS: 'Google Ads', WEBSITE: 'Site', REFERRAL: 'Indicação',
-  PORTAL: 'Portal', WHATSAPP: 'WhatsApp', OTHER: 'Outro',
+  SITE: 'Site', LANDING_PAGE: 'Landing page', WHATSAPP: 'WhatsApp',
+  INSTAGRAM: 'Instagram', FACEBOOK_ADS: 'Facebook Ads', GOOGLE_ADS: 'Google Ads',
+  REFERRAL: 'Indicação', SALES_STAND: 'Plantão de vendas', PHONE_CALL: 'Ligação',
+  MANUAL_IMPORT: 'Importação manual', INTEGRATION: 'Integração',
 };
 
 function avatarColor(name: string) {
@@ -152,7 +160,7 @@ const newLeadSchema = z.object({
 function NewLeadModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const toast = useToast();
-  const form = useZodForm(newLeadSchema, { name: '', phone: '', cityOfInterest: '', origin: 'META_ADS', currentQueueId: '' });
+  const form = useZodForm(newLeadSchema, { name: '', phone: '', cityOfInterest: '', origin: 'SITE', currentQueueId: '' });
   const queues = useQuery({ queryKey: ['queues'], queryFn: () => api.get<Queue[]>('/queues') });
 
   const m = useMutation({
