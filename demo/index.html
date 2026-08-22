@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LeadFlow Imobiliário — Demonstração</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+<style>
+  :root{
+    --paper:#F6F5F2; --surface:#fff; --ink:#15181E; --ink900:#0D1117;
+    --muted:#6B7382; --line:#E8E6E1; --accent:#0E7C66; --accent600:#0B6552; --accent50:#E6F2EE;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Geist',system-ui,sans-serif;background:var(--paper);color:var(--ink);
+    min-height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:920px;margin:0 auto;padding:48px 24px;width:100%;flex:1;
+    display:flex;flex-direction:column;justify-content:center}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:40px}
+  .logo{width:38px;height:38px;border-radius:11px;background:var(--accent);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px}
+  .brand-name{font-weight:600;font-size:17px;letter-spacing:-.3px}
+  .brand-sub{font-size:11px;color:var(--muted)}
+  h1{font-size:30px;font-weight:600;letter-spacing:-.5px;line-height:1.15;max-width:560px}
+  .lead{margin-top:12px;font-size:15px;color:var(--muted);max-width:540px;line-height:1.6}
+  .grid{margin-top:36px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:640px){.grid{grid-template-columns:1fr}h1{font-size:25px}}
+  .card{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);
+    border-radius:18px;padding:22px;text-decoration:none;color:inherit;transition:.18s;
+    box-shadow:0 1px 3px rgba(13,17,23,.05)}
+  .card:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(13,17,23,.10);border-color:#DEDCD6}
+  .card-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;
+    justify-content:center;font-size:22px;margin-bottom:16px}
+  .ci-sys{background:var(--accent50);color:var(--accent600)}
+  .ci-flow{background:#EEF2FF;color:#4f46e5}
+  .card h2{font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .card p{margin-top:6px;font-size:13.5px;color:var(--muted);line-height:1.55;flex:1}
+  .card .go{margin-top:16px;display:inline-flex;align-items:center;gap:6px;font-size:13px;
+    font-weight:600;color:var(--accent600)}
+  .tags{margin-top:14px;display:flex;flex-wrap:wrap;gap:6px}
+  .tag{font-size:11px;background:var(--paper);border:1px solid var(--line);border-radius:20px;
+    padding:3px 9px;color:var(--muted)}
+  .note{margin-top:32px;display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--muted);
+    background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;padding:11px 14px;max-width:620px}
+  .note i{color:#b45309;margin-top:1px}
+  footer{padding:20px 24px;text-align:center;font-size:11px;color:var(--muted);
+    font-family:'Geist Mono',monospace;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <div class="logo">L</div>
+      <div>
+        <div class="brand-name">LeadFlow <span style="color:var(--accent)">Imobiliário</span></div>
+        <div class="brand-sub">Demonstração</div>
+      </div>
+    </div>
+
+    <h1>Distribuição inteligente de leads para imobiliárias.</h1>
+    <p class="lead">Do primeiro contato à venda: receba, distribua e acompanhe cada lead —
+      com regras visuais de roteamento e visão clara da operação.</p>
+
+    <div class="grid">
+      <a class="card" href="prototipo.html">
+        <div class="card-icon ci-sys"><i class="ti ti-layout-dashboard"></i></div>
+        <h2>O Sistema</h2>
+        <p>Navegue pelas telas como um corretor ou gestor: leads, funil, distribuição automática
+          e atendimento. Troque de perfil e veja o acesso mudar.</p>
+        <div class="tags">
+          <span class="tag">Leads</span><span class="tag">Funil</span>
+          <span class="tag">Distribuição</span><span class="tag">Perfis de acesso</span>
+        </div>
+        <span class="go">Abrir o sistema <i class="ti ti-arrow-right"></i></span>
+      </a>
+
+      <a class="card" href="flowbuilder.html">
+        <div class="card-icon ci-flow"><i class="ti ti-topology-star-3"></i></div>
+        <h2>Construtor de Fluxo</h2>
+        <p>Monte visualmente como os leads são distribuídos: arraste blocos, divida por
+          porcentagem e direcione para filas e corretores.</p>
+        <div class="tags">
+          <span class="tag">Arrastar e soltar</span><span class="tag">Randomizador</span>
+          <span class="tag">Condições</span><span class="tag">Filas</span>
+        </div>
+        <span class="go">Abrir o construtor <i class="ti ti-arrow-right"></i></span>
+      </a>
+    </div>
+
+    <div class="note">
+      <i class="ti ti-info-circle"></i>
+      <span>Esta é uma demonstração visual com dados de exemplo. Serve para apresentar a
+        experiência e o fluxo — a versão funcional conecta-se ao sistema real.</span>
+    </div>
+  </div>
+
+  <footer>LeadFlow Imobiliário · demonstração · uso restrito</footer>
+</body>
+</html>

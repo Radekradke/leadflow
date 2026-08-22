@@ -1,0 +1,234 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Prisma } from '@prisma/client';
+import { LEAD_CREATED, LeadCreatedEvent } from '../../common/events/app-events';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { AuthenticatedUser } from '../auth/auth.types';
+import {
+  ChangeStatusDto,
+  CreateLeadDto,
+  ListLeadsQuery,
+  UpdateLeadDto,
+} from './dto/lead.dto';
+import { canSeeContact, canSeeSensitive, serializeLead } from './lead.masking';
+import { leadScopeWhere } from './lead.scope';
+import { canTransition, reasonRequired } from './lead-status.machine';
+
+@Injectable()
+export class LeadService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+    private readonly events: EventEmitter2,
+  ) {}
+
+  /** Cria o lead e o primeiro registro de histórico (null -> NEW), atômico. */
+  async create(user: AuthenticatedUser, dto: CreateLeadDto) {
+    // Se veio com fila de entrada, ela precisa existir no tenant (a RLS já
+    // limita o findFirst ao tenant atual; FK inválida viraria erro feio).
+    if (dto.currentQueueId) {
+      const queue = await this.prisma.client.queue.findFirst({
+        where: { id: dto.currentQueueId },
+        select: { id: true },
+      });
+      if (!queue) throw new BadRequestException('Fila de entrada inválida');
+    }
+
+    const lead = await this.prisma.tx(async (trx) => {
+      const created = await trx.lead.create({
+        data: {
+          ...dto,
+          tenantId: user.tenantId, // exigido pela RLS (WITH CHECK)
+          status: 'NEW',
+        },
+      });
+      await trx.leadStatusHistory.create({
+        data: {
+          tenantId: user.tenantId,
+          leadId: created.id,
+          fromStatus: null,
+          toStatus: 'NEW',
+          changedById: user.id,
+        },
+      });
+      return created;
+    });
+
+    await this.audit.record({
+      tenantId: user.tenantId,
+      actorId: user.id,
+      actorType: 'USER',
+      action: 'lead.created',
+      resourceType: 'Lead',
+      resourceId: lead.id,
+    });
+
+    // Dispara a distribuição automática (fire-and-forget). Roda no mesmo
+    // contexto async, então a RLS continua enxergando o tenant. Se não
+    // houver fila ou a distribuição estiver desligada, o listener ignora.
+    if (lead.currentQueueId) {
+      this.events.emit(LEAD_CREATED, {
+        leadId: lead.id,
+        actor: user,
+      } satisfies LeadCreatedEvent);
+    }
+
+    return serializeLead(lead, canSeeSensitive(user), canSeeContact(user));
+  }
+
+  /** Lista paginada, JÁ filtrada pelo escopo do perfil. CPF sempre mascarado. */
+  async list(user: AuthenticatedUser, q: ListLeadsQuery) {
+    const where: Prisma.LeadWhereInput = {
+      ...leadScopeWhere(user),
+      ...(q.status ? { status: q.status } : {}),
+      ...(q.search
+        ? {
+            OR: [
+              { name: { contains: q.search, mode: 'insensitive' } },
+              { phone: { contains: q.search } },
+            ],
+          }
+        : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.client.lead.findMany({
+        where,
+        skip: (q.page - 1) * q.pageSize,
+        take: q.pageSize,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.client.lead.count({ where }),
+    ]);
+
+    return {
+      items: items.map((lead) => serializeLead(lead, canSeeSensitive(user), canSeeContact(user))),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  }
+
+  /**
+   * Detalhe de um lead. Aplica o escopo no WHERE (defesa contra IDOR):
+   * se o lead existe mas está fora do escopo, devolve 404 — não revela
+   * que ele existe. Só audita o acesso SENSÍVEL quando o CPF é de fato
+   * exibido (trilha de acesso a dado pessoal, para LGPD).
+   */
+  async findOne(user: AuthenticatedUser, id: string) {
+    const lead = await this.prisma.client.lead.findFirst({
+      where: { id, ...leadScopeWhere(user) },
+    });
+    if (!lead) throw new NotFoundException('Lead não encontrado');
+
+    const sensitive = canSeeSensitive(user);
+    if (sensitive && lead.cpf) {
+      await this.audit.record({
+        tenantId: user.tenantId,
+        actorId: user.id,
+        actorType: 'USER',
+        action: 'lead.sensitive.viewed',
+        resourceType: 'Lead',
+        resourceId: lead.id,
+      });
+    }
+
+    return serializeLead(lead, sensitive, canSeeContact(user));
+  }
+
+  /** Atualiza campos do lead. Confirma o escopo ANTES de editar. */
+  async update(user: AuthenticatedUser, id: string, dto: UpdateLeadDto) {
+    const inScope = await this.prisma.client.lead.findFirst({
+      where: { id, ...leadScopeWhere(user) },
+      select: { id: true },
+    });
+    if (!inScope) throw new NotFoundException('Lead não encontrado');
+
+    const updated = await this.prisma.client.lead.update({
+      where: { id },
+      data: { ...dto },
+    });
+
+    await this.audit.record({
+      tenantId: user.tenantId,
+      actorId: user.id,
+      actorType: 'USER',
+      action: 'lead.updated',
+      resourceType: 'Lead',
+      resourceId: id,
+    });
+
+    return serializeLead(updated, canSeeSensitive(user), canSeeContact(user));
+  }
+
+  /**
+   * Move o lead pelo funil. Valida a transição (máquina de estados),
+   * exige motivo p/ LOST/ARCHIVED, checa a permissão lead:archive para
+   * encerrar, e grava o histórico — tudo atômico.
+   */
+  async changeStatus(
+    user: AuthenticatedUser,
+    id: string,
+    dto: ChangeStatusDto,
+  ) {
+    const lead = await this.prisma.client.lead.findFirst({
+      where: { id, ...leadScopeWhere(user) },
+      select: { id: true, status: true },
+    });
+    if (!lead) throw new NotFoundException('Lead não encontrado');
+
+    const from = lead.status;
+    const to = dto.status;
+
+    if (from === to) {
+      throw new BadRequestException('O lead já está nesse status');
+    }
+    if (!canTransition(from, to)) {
+      throw new BadRequestException(`Transição inválida: ${from} → ${to}`);
+    }
+    if (reasonRequired(to) && !dto.reason?.trim()) {
+      throw new BadRequestException('Motivo é obrigatório para este status');
+    }
+    if (
+      (to === 'LOST' || to === 'ARCHIVED') &&
+      !user.permissions.includes('lead:archive')
+    ) {
+      throw new ForbiddenException(
+        'Sem permissão para encerrar/arquivar leads',
+      );
+    }
+
+    const updated = await this.prisma.tx(async (trx) => {
+      const u = await trx.lead.update({ where: { id }, data: { status: to } });
+      await trx.leadStatusHistory.create({
+        data: {
+          tenantId: user.tenantId,
+          leadId: id,
+          fromStatus: from,
+          toStatus: to,
+          reason: dto.reason,
+          changedById: user.id,
+        },
+      });
+      return u;
+    });
+
+    await this.audit.record({
+      tenantId: user.tenantId,
+      actorId: user.id,
+      actorType: 'USER',
+      action: 'lead.status.changed',
+      resourceType: 'Lead',
+      resourceId: id,
+      metadata: { from, to },
+    });
+
+    return serializeLead(updated, canSeeSensitive(user), canSeeContact(user));
+  }
+}

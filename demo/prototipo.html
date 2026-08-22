@@ -1,0 +1,798 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LeadFlow Imobiliário — Protótipo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css" />
+<style>
+:root{
+  --paper:#F7F6F3; --surface:#fff; --ink:#16191F; --ink9:#0E131B; --ink8:#161C26; --ink7:#1E2632;
+  --line:#E7E5E0; --muted:#6C7280; --accent:#0E7C66; --accent6:#0B6552; --accent50:#E6F2EE;
+  --r:.75rem; --r2:1rem;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body,#app{height:100%}
+body{font-family:'Geist',system-ui,sans-serif;background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#d8d6d0;border-radius:8px}
+.mono{font-family:'Geist Mono',monospace}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* layout */
+.app{display:flex;height:100%}
+.sidebar{width:240px;flex-shrink:0;background:var(--ink9);color:#fff;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:10px;padding:18px 20px}
+.logo{width:32px;height:32px;border-radius:9px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:600}
+.brand b{font-weight:600;letter-spacing:-.3px}
+.nav{flex:1;padding:8px 12px;display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;color:rgba(255,255,255,.6);font-size:14px;cursor:pointer;transition:.15s}
+.nav a:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav a.active{background:rgba(255,255,255,.1);color:#fff}
+.nav a i{font-size:18px}
+.side-foot{border-top:1px solid rgba(255,255,255,.1);padding:12px}
+.userbox{display:flex;align-items:center;gap:10px;padding:6px 8px}
+.avatar{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;flex-shrink:0}
+.userbox .nm{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.userbox .rl{font-size:11px;color:rgba(255,255,255,.4)}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{display:flex;align-items:center;gap:12px;padding:12px 28px;border-bottom:1px solid var(--line);background:var(--surface)}
+.topbar h1{font-size:16px;font-weight:600;letter-spacing:-.2px}
+.spacer{flex:1}
+.role-switch{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.role-switch select{font-family:inherit;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--surface);color:var(--ink);cursor:pointer}
+.demo-badge{font-size:10px;font-family:'Geist Mono',monospace;color:var(--accent6);background:var(--accent50);padding:3px 8px;border-radius:20px}
+.content{flex:1;overflow-y:auto;padding:24px 28px 80px}
+
+/* cards / ui */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r2);box-shadow:0 1px 2px rgba(16,19,27,.04),0 1px 3px rgba(16,19,27,.06)}
+.grid{display:grid;gap:12px}
+.g4{grid-template-columns:repeat(4,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:repeat(2,1fr)}
+.stat{padding:16px}
+.stat .l{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:500}
+.stat .v{font-family:'Geist Mono',monospace;font-size:26px;font-weight:600;margin-top:4px}
+.stat .h{font-size:12px;color:var(--muted);margin-top:2px}
+.v.warn{color:#b45309}.v.good{color:var(--accent6)}
+.sec-title{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:600;margin:28px 0 12px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:var(--r);padding:9px 14px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;border:1px solid transparent;transition:.15s}
+.btn i{font-size:16px}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent6)}
+.btn-ghost{background:var(--surface);border-color:var(--line);color:var(--ink)}.btn-ghost:hover{background:var(--paper)}
+.btn-sm{padding:6px 10px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.input,select.input{width:100%;border:1px solid var(--line);border-radius:var(--r);padding:9px 11px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--ink)}
+.input:focus{outline:none;border-color:var(--accent)}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:500;margin-bottom:5px;display:block}
+.pill{display:inline-flex;align-items:center;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:500;white-space:nowrap}
+
+/* table */
+table{width:100%;border-collapse:collapse}
+thead th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:500;padding:10px 14px;border-bottom:1px solid var(--line)}
+tbody td{padding:11px 14px;border-bottom:1px solid var(--line);font-size:13px}
+tbody tr{cursor:pointer}tbody tr:hover{background:var(--paper)}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.toolbar .input{width:auto}
+.search{position:relative}.search i{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:16px}
+.search input{padding-left:32px}
+
+/* bars */
+.barrow{display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--line)}
+.barrow:last-child{border:none}
+.bartrack{flex:1;height:8px;background:var(--paper);border-radius:999px;overflow:hidden}
+.barfill{height:100%;border-radius:999px;background:var(--accent)}
+.barfill.warn{background:#f59e0b}
+
+/* drawer / modal */
+.overlay{position:fixed;inset:0;background:rgba(16,19,27,.5);backdrop-filter:blur(3px);z-index:50;display:flex;justify-content:flex-end}
+.overlay.center{align-items:center;justify-content:center}
+.drawer{width:480px;max-width:100%;height:100%;background:var(--surface);overflow-y:auto;animation:slideIn .2s ease}
+.modal{width:420px;max-width:calc(100vw - 32px);background:var(--surface);border-radius:var(--r2);padding:22px;animation:popIn .15s ease}
+@keyframes slideIn{from{transform:translateX(24px);opacity:.6}to{transform:none;opacity:1}}
+@keyframes popIn{from{transform:scale(.97);opacity:0}to{transform:none;opacity:1}}
+.drawer-head{display:flex;align-items:flex-start;justify-content:space-between;padding:20px 22px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface);z-index:1}
+.drawer-body{padding:20px 22px}
+.x{cursor:pointer;color:var(--muted);width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.x:hover{background:var(--paper);color:var(--ink)}
+.field{margin-bottom:13px}
+.kv{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.kv .k{color:var(--muted)}
+.timeline{position:relative;padding-left:18px}
+.timeline .ev{position:relative;padding:0 0 14px 14px;border-left:2px solid var(--line)}
+.timeline .ev:last-child{border-color:transparent}
+.timeline .dot{position:absolute;left:-7px;top:2px;width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid var(--surface)}
+.timeline .ev .t{font-size:13px;font-weight:500}
+.timeline .ev .m{font-size:12px;color:var(--muted);margin-top:1px}
+
+.toasts{position:fixed;top:16px;right:16px;z-index:200;display:flex;flex-direction:column;gap:8px}
+.toast{background:var(--ink9);color:#fff;padding:11px 15px;border-radius:var(--r);font-size:13px;display:flex;align-items:center;gap:8px;box-shadow:0 8px 30px rgba(0,0,0,.25);animation:popIn .15s ease;max-width:340px}
+.toast i{color:#34d399;font-size:18px}
+
+.empty{padding:40px;text-align:center;color:var(--muted);font-size:14px}
+.mobile-nav{display:none}
+
+/* login */
+.login{display:flex;height:100%}
+.login .left{width:50%;background:var(--ink9);color:#fff;padding:48px;display:flex;flex-direction:column;justify-content:space-between}
+.login .left h1{font-size:30px;font-weight:600;line-height:1.2;letter-spacing:-.4px;max-width:420px}
+.login .left p{color:rgba(255,255,255,.6);font-size:14px;margin-top:14px;max-width:420px}
+.login .right{width:50%;display:flex;align-items:center;justify-content:center;padding:24px}
+.login form{width:100%;max-width:340px}
+
+@media(max-width:860px){
+  .sidebar{display:none}
+  .g4{grid-template-columns:repeat(2,1fr)}.g3,.g2{grid-template-columns:1fr}
+  .content{padding:16px 16px 80px}
+  .topbar{padding:12px 16px}
+  .drawer{width:100%}
+  .login .left{display:none}.login .right{width:100%}
+  .hide-sm{display:none}
+  .mobile-nav{display:flex;position:fixed;inset-inline:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);z-index:30}
+  .mobile-nav a{flex:1;text-align:center;padding:10px 0;font-size:11px;color:var(--muted);cursor:pointer}
+  .mobile-nav a i{display:block;font-size:20px;margin-bottom:2px}
+  .mobile-nav a.active{color:var(--accent)}
+}
+
+/* ===== Atendimento (estilo WhatsApp) ===== */
+.wa{display:flex;height:calc(100vh - 150px);min-height:430px;border:1px solid var(--line);border-radius:var(--r2);overflow:hidden;background:#fff}
+.wa-list{width:340px;flex-shrink:0;border-right:1px solid var(--line);display:flex;flex-direction:column;background:#fff}
+.wa-list-head{padding:14px 16px;border-bottom:1px solid var(--line)}
+.wa-list-head b{font-size:15px}
+.wa-sub{font-size:11px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:6px}
+.wa-dot{width:7px;height:7px;border-radius:50%;background:#25D366;display:inline-block;box-shadow:0 0 0 3px rgba(37,211,102,.18)}
+.wa-search{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--line);color:var(--muted)}
+.wa-search input{border:none;outline:none;font:inherit;font-size:13px;width:100%;background:transparent;color:var(--ink)}
+.wa-convs{flex:1;overflow-y:auto}
+.wa-conv{display:flex;gap:11px;align-items:center;padding:11px 14px;cursor:pointer;border-bottom:1px solid #f3f2ee}
+.wa-conv:hover{background:#f7f6f3}
+.wa-conv.active{background:#eef0ee}
+.wa-av{width:42px;height:42px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:#fff;background:linear-gradient(135deg,#0E7C66,#0B6552)}
+.wa-conv-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.wa-nm{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wa-tm{font-size:11px;color:var(--muted);flex-shrink:0}
+.wa-conv-bot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:2px}
+.wa-prev{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wa-badge{flex-shrink:0;background:#25D366;color:#fff;font-size:11px;font-weight:600;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 5px}
+.wa-chat{flex:1;display:flex;flex-direction:column;background:#efeae2;min-width:0}
+.wa-chat-head{display:flex;align-items:center;gap:11px;padding:10px 16px;background:#f7f6f3;border-bottom:1px solid var(--line)}
+.wa-sub2{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px}
+.wa-status{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;white-space:nowrap}
+.wa-body{flex:1;overflow-y:auto;padding:18px 13% 18px 18px;display:flex;flex-direction:column;gap:7px}
+@media(max-width:900px){.wa-body{padding:16px}}
+.wa-day{align-self:center;background:#fff;color:var(--muted);font-size:11px;padding:4px 11px;border-radius:8px;box-shadow:0 1px 1px rgba(0,0,0,.08);margin-bottom:6px}
+.bub{max-width:74%;padding:6px 9px 7px;border-radius:9px;font-size:13.5px;line-height:1.42;position:relative;box-shadow:0 1px .5px rgba(0,0,0,.13);word-wrap:break-word}
+.bub.them{background:#fff;align-self:flex-start;border-top-left-radius:2px}
+.bub.me{background:#d9fdd3;align-self:flex-end;border-top-right-radius:2px}
+.bub .t{font-size:10px;color:#667781;float:right;margin:7px 0 -3px 10px;user-select:none}
+.wa-composer{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f0f0f0}
+.wa-cicon{color:#54656f;font-size:20px;cursor:pointer}
+.wa-composer input{flex:1;border:none;outline:none;background:#fff;border-radius:10px;padding:10px 14px;font:inherit;font-size:14px;color:var(--ink)}
+.wa-send{width:42px;height:42px;flex-shrink:0;border:none;border-radius:50%;background:#0E7C66;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.wa-send:hover{background:#0B6552}
+.wa-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--muted);background:#efeae2;padding:30px}
+.wa-empty .ic{width:70px;height:70px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:34px;color:#25D366;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.wa-back{display:none;cursor:pointer;font-size:22px;color:var(--muted);margin-right:2px}
+@media(max-width:760px){
+  .wa{height:calc(100vh - 176px)}
+  .wa-list{width:100%}
+  .wa.has-chat .wa-list{display:none}
+  .wa:not(.has-chat) .wa-chat,.wa:not(.has-chat) .wa-empty{display:none}
+  .wa-back{display:flex}
+}
+
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="toasts" id="toasts"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  DADOS MOCK
+// ════════════════════════════════════════════════════════════
+const ROLES = {
+  ADMIN:{label:'Administrador', sensitive:true, contact:true, scope:'all'},
+  SALES_MANAGER:{label:'Gestor comercial', sensitive:true, contact:true, scope:'all'},
+  COORDINATOR:{label:'Coordenador', sensitive:true, contact:true, scope:'team'},
+  // Corretor: VÊ o CPF (precisa p/ simulação), mas NÃO vê o telefone
+  // (para não levar o lead para fora do sistema).
+  BROKER:{label:'Corretor (Marcos)', sensitive:true, contact:false, scope:'own'},
+};
+const STATUS = {
+  NEW:{l:'Novo',c:'#475569',bg:'#f1f5f9'},
+  AWAITING_DISTRIBUTION:{l:'Aguardando distribuição',c:'#92400e',bg:'#fef3c7'},
+  DISTRIBUTED:{l:'Distribuído',c:'#1d4ed8',bg:'#dbeafe'},
+  IN_SERVICE:{l:'Em atendimento',c:'#1e40af',bg:'#dbeafe'},
+  NO_RESPONSE:{l:'Sem resposta',c:'#92400e',bg:'#fef3c7'},
+  IN_QUALIFICATION:{l:'Em qualificação',c:'#4338ca',bg:'#e0e7ff'},
+  VISIT_SUGGESTED:{l:'Visita sugerida',c:'#6d28d9',bg:'#ede9fe'},
+  VISIT_SCHEDULED:{l:'Visita agendada',c:'#5b21b6',bg:'#ede9fe'},
+  FUTURE_PROPOSAL:{l:'Proposta futura',c:'#0f766e',bg:'#ccfbf1'},
+  RESOLVED:{l:'Convertido',c:'#0B6552',bg:'#E6F2EE'},
+  LOST:{l:'Perdido',c:'#b91c1c',bg:'#fee2e2'},
+  TO_REDISTRIBUTE:{l:'Redistribuir',c:'#c2410c',bg:'#ffedd5'},
+  ARCHIVED:{l:'Arquivado',c:'#64748b',bg:'#f1f5f9'},
+};
+// máquina de estados (igual ao backend)
+const TRANSITIONS = {
+  NEW:['IN_SERVICE','IN_QUALIFICATION','NO_RESPONSE','LOST','ARCHIVED'],
+  AWAITING_DISTRIBUTION:['IN_SERVICE','LOST','ARCHIVED'],
+  DISTRIBUTED:['IN_SERVICE','NO_RESPONSE','LOST','ARCHIVED'],
+  IN_SERVICE:['IN_QUALIFICATION','NO_RESPONSE','VISIT_SUGGESTED','VISIT_SCHEDULED','FUTURE_PROPOSAL','RESOLVED','LOST','TO_REDISTRIBUTE','ARCHIVED'],
+  NO_RESPONSE:['IN_SERVICE','IN_QUALIFICATION','LOST','TO_REDISTRIBUTE','ARCHIVED'],
+  IN_QUALIFICATION:['IN_SERVICE','VISIT_SUGGESTED','VISIT_SCHEDULED','FUTURE_PROPOSAL','NO_RESPONSE','RESOLVED','LOST','ARCHIVED'],
+  VISIT_SUGGESTED:['VISIT_SCHEDULED','IN_QUALIFICATION','NO_RESPONSE','FUTURE_PROPOSAL','RESOLVED','LOST','ARCHIVED'],
+  VISIT_SCHEDULED:['FUTURE_PROPOSAL','IN_QUALIFICATION','NO_RESPONSE','RESOLVED','LOST','ARCHIVED'],
+  FUTURE_PROPOSAL:['RESOLVED','IN_QUALIFICATION','NO_RESPONSE','LOST','ARCHIVED'],
+  RESOLVED:['ARCHIVED'], LOST:['IN_SERVICE','ARCHIVED'], TO_REDISTRIBUTE:['IN_SERVICE','LOST','ARCHIVED'], ARCHIVED:[],
+};
+const REASON_REQUIRED = ['LOST','ARCHIVED'];
+
+const DAY = 86400000, now = Date.now();
+const ago = d => now - d*DAY;
+
+const S = {
+  role:'SALES_MANAGER',
+  view:'dash',
+  brokers:[
+    {id:'b1',name:'Marcos Vieira',availability:'AVAILABLE',max:50,accepts:true},
+    {id:'b2',name:'Priya Nair',availability:'AVAILABLE',max:40,accepts:true},
+    {id:'b3',name:'Lucas Mota',availability:'BUSY',max:50,accepts:true},
+    {id:'b4',name:'Sofia Pires',availability:'AVAILABLE',max:30,accepts:true},
+    {id:'b5',name:'Juliana Rocha',availability:'AWAY',max:50,accepts:true},
+  ],
+  queues:[
+    {id:'q1',name:'Nova Iguaçu — Leads',strategy:'ROUND_ROBIN',enabled:true,members:['b1','b2','b4'],cursor:null},
+    {id:'q2',name:'Lançamento Jacarepaguá',strategy:'LEAST_LOADED',enabled:true,members:['b1','b3','b4'],cursor:null},
+    {id:'q3',name:'Retomada / Leads frios',strategy:'RANDOM',enabled:false,members:['b2','b5'],cursor:null},
+  ],
+  leads:[],
+  log:[],
+  seq:1,
+};
+
+function mkLead(o){ return Object.assign({id:'L'+(1000+S.seq++),createdAt:ago(2),lastContactAt:null,broker:null,interactions:[]},o); }
+S.leads = [
+  mkLead({name:'Ana Beatriz Souza',phone:'(21) 98812-4471',cpf:'412.889.330-91',income:4800,city:'Nova Iguaçu',origin:'Meta Ads',status:'IN_SERVICE',queueId:'q1',broker:'b1',lastContactAt:ago(1)}),
+  mkLead({name:'Carlos Henrique Lima',phone:'(21) 99645-1180',cpf:'225.711.408-32',income:6200,city:'Nova Iguaçu',origin:'Site',status:'VISIT_SCHEDULED',queueId:'q1',broker:'b1',lastContactAt:ago(0)}),
+  mkLead({name:'Daniela Martins',phone:'(21) 98123-7755',cpf:'901.334.226-10',income:3500,city:'Belford Roxo',origin:'Indicação',status:'NO_RESPONSE',queueId:'q1',broker:'b2',lastContactAt:ago(5)}),
+  mkLead({name:'Eduardo Pacheco',phone:'(21) 99980-2231',cpf:'556.012.789-44',income:9000,city:'Jacarepaguá',origin:'Google Ads',status:'IN_QUALIFICATION',queueId:'q2',broker:'b4',lastContactAt:ago(2)}),
+  mkLead({name:'Fernanda Ribeiro',phone:'(21) 98700-9912',cpf:'334.778.120-05',income:5200,city:'Jacarepaguá',origin:'Meta Ads',status:'FUTURE_PROPOSAL',queueId:'q2',broker:'b3',lastContactAt:ago(4)}),
+  mkLead({name:'Gabriel Nunes',phone:'(21) 99112-3398',cpf:'778.450.991-23',income:7100,city:'Nova Iguaçu',origin:'Portal Imóveis',status:'RESOLVED',queueId:'q1',broker:'b1',lastContactAt:ago(8)}),
+  mkLead({name:'Helena Castro',phone:'(21) 98456-7781',cpf:'120.998.557-66',income:4100,city:'Mesquita',origin:'Meta Ads',status:'LOST',queueId:'q1',broker:'b2',lastContactAt:ago(12)}),
+  mkLead({name:'Igor Almeida',phone:'(21) 99323-4410',cpf:'667.221.880-19',income:5800,city:'Jacarepaguá',origin:'Site',status:'DISTRIBUTED',queueId:'q2',broker:'b4',lastContactAt:null}),
+  mkLead({name:'Juliana Freitas',phone:'(21) 98890-1123',cpf:'445.667.229-77',income:6700,city:'Nova Iguaçu',origin:'WhatsApp',status:'AWAITING_DISTRIBUTION',queueId:'q1',broker:null,lastContactAt:null}),
+  mkLead({name:'Kléber Santos',phone:'(21) 99771-5582',cpf:'310.554.778-40',income:3900,city:'Nilópolis',origin:'Indicação',status:'AWAITING_DISTRIBUTION',queueId:'q1',broker:null,lastContactAt:null}),
+  mkLead({name:'Larissa Gomes',phone:'(21) 98221-6634',cpf:'882.119.443-58',income:8800,city:'Jacarepaguá',origin:'Google Ads',status:'AWAITING_DISTRIBUTION',queueId:'q2',broker:null,lastContactAt:null}),
+  mkLead({name:'Marcelo Tavares',phone:'(21) 99008-7745',cpf:'559.300.118-92',income:4400,city:'Nova Iguaçu',origin:'Meta Ads',status:'NEW',queueId:null,broker:null,lastContactAt:null}),
+];
+// seed interactions
+S.leads[0].interactions=[{t:'Ligação',m:'Cliente atendeu, interessada em 2 quartos',d:ago(1)},{t:'WhatsApp',m:'Enviado catálogo do empreendimento',d:ago(1)}];
+S.leads[1].interactions=[{t:'Visita',m:'Visita agendada para sábado 10h',d:ago(0)}];
+
+// ════════════════════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════════════════════
+const $ = (s,r=document)=>r.querySelector(s);
+const role = ()=>ROLES[S.role];
+const broker = id => S.brokers.find(b=>b.id===id);
+const queue = id => S.queues.find(q=>q.id===id);
+const activeCount = bid => S.leads.filter(l=>l.broker===bid && !['RESOLVED','LOST','ARCHIVED'].includes(l.status)).length;
+function maskCpf(cpf){ if(!cpf) return '—'; return role().sensitive ? cpf : '***.***.**'+cpf.slice(-3,-1)+'-**'.slice(0,0)+cpf.slice(-2); }
+function cpfDisplay(cpf){ if(!cpf) return '—'; if(role().sensitive) return cpf; return '***.***.**-'+cpf.slice(-2); }
+function phoneDisplay(p){ if(!p) return '—'; if(role().contact) return p; const d=String(p).replace(/\D/g,''); return '('+d.slice(0,2)+') *****-**'+d.slice(-2); }
+function lastContactLabel(l){ const t=l.lastContactAt; if(!t) return 'sem contato ainda'; const days=Math.round((now-t)/DAY); return days<=0?'contato hoje':('há '+days+'d'); }
+function navItems(){ return role().scope==='own' ? NAV.filter(n=>!['queues','dist'].includes(n.k)) : NAV; }
+function pill(status){ const s=STATUS[status]; return `<span class="pill" style="color:${s.c};background:${s.bg}">${s.l}</span>`; }
+function fmtDate(d){ if(!d) return '—'; const diff=Math.floor((now-d)/DAY); if(diff===0)return 'hoje'; if(diff===1)return 'ontem'; return diff+' dias atrás'; }
+
+// escopo de leads por papel (anti-IDOR no backend; aqui só pra demonstrar)
+function visibleLeads(){
+  const sc = role().scope;
+  if(sc==='own') return S.leads.filter(l=>l.broker==='b1' && !['RESOLVED','LOST','ARCHIVED'].includes(l.status));
+  return S.leads.slice();
+}
+function toast(msg){
+  const el=document.createElement('div');el.className='toast';
+  el.innerHTML=`<i class="ti ti-circle-check"></i><span>${msg}</span>`;
+  $('#toasts').appendChild(el); setTimeout(()=>el.remove(),3200);
+}
+
+// estratégias de distribuição (espelham o motor)
+function eligible(q){
+  return q.members.map(broker).filter(b=>b.availability==='AVAILABLE'&&b.accepts&&activeCount(b.id)<b.max);
+}
+function pick(q,cands){
+  if(q.strategy==='RANDOM') return cands[Math.floor(Math.random()*cands.length)];
+  if(q.strategy==='LEAST_LOADED') return [...cands].sort((a,b)=>activeCount(a.id)-activeCount(b.id)||a.id.localeCompare(b.id))[0];
+  // ROUND_ROBIN
+  const ord=[...cands].sort((a,b)=>a.id.localeCompare(b.id));
+  if(!q.cursor) return ord[0];
+  const i=ord.findIndex(c=>c.id===q.cursor); return ord[i===-1?0:(i+1)%ord.length];
+}
+function distributeLead(lead){
+  const q=queue(lead.queueId); if(!q) return {result:'NO_QUEUE'};
+  if(lead.broker) return {result:'ALREADY_ASSIGNED'};
+  const cands=eligible(q);
+  if(!cands.length){ S.log.unshift({d:now,q:q.name,result:'SEM CORRETOR',lead:lead.name}); return {result:'NO_BROKER'}; }
+  const chosen=pick(q,cands);
+  lead.broker=chosen.id; lead.status='DISTRIBUTED'; q.cursor=chosen.id;
+  S.log.unshift({d:now,q:q.name,result:'ATRIBUÍDO → '+chosen.name,lead:lead.name,strategy:q.strategy});
+  return {result:'ASSIGNED',broker:chosen};
+}
+
+// ════════════════════════════════════════════════════════════
+//  RENDER — shell
+// ════════════════════════════════════════════════════════════
+let LOGGED=false;
+const NAV=[
+  {k:'dash',label:'Painel',icon:'ti-layout-dashboard'},
+  {k:'leads',label:'Leads',icon:'ti-users'},
+  {k:'inbox',label:'Atendimento',icon:'ti-brand-whatsapp'},
+  {k:'queues',label:'Filas',icon:'ti-stack-2'},
+  {k:'dist',label:'Distribuição',icon:'ti-route'},
+];
+function initials(n){return n.split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase();}
+
+function render(){
+  if(!LOGGED){ renderLogin(); return; }
+  const titleMap={dash:'Painel',leads:'Leads',inbox:'Atendimento',queues:'Filas',dist:'Distribuição'};
+  $('#app').innerHTML=`
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><div class="logo">L</div><b>LeadFlow</b></div>
+      <nav class="nav">
+        ${navItems().map(n=>`<a class="${S.view===n.k?'active':''}" onclick="go('${n.k}')"><i class="ti ${n.icon}"></i>${n.label}</a>`).join('')}
+      </nav>
+      <div class="side-foot">
+        <div class="userbox"><div class="avatar">${initials(roleName())}</div>
+          <div style="min-width:0"><div class="nm">${roleName()}</div><div class="rl">${role().label}</div></div></div>
+        <a class="nav" style="display:block;padding:8px 8px;color:rgba(255,255,255,.6);font-size:13px;cursor:pointer" onclick="logout()">Sair</a>
+      </div>
+    </aside>
+    <div class="main">
+      <div class="topbar">
+        <h1>${titleMap[S.view]}</h1>
+        <div class="spacer"></div>
+        <span class="demo-badge hide-sm">PROTÓTIPO · dados fictícios</span>
+        <div class="role-switch">
+          <span class="hide-sm">Simular papel:</span>
+          <select onchange="setRole(this.value)">
+            ${Object.entries(ROLES).map(([k,v])=>`<option value="${k}" ${S.role===k?'selected':''}>${v.label}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="content" id="content"></div>
+    </div>
+    <nav class="mobile-nav">
+      ${navItems().map(n=>`<a class="${S.view===n.k?'active':''}" onclick="go('${n.k}')"><i class="ti ${n.icon}"></i>${n.label}</a>`).join('')}
+    </nav>
+  </div>`;
+  renderView();
+}
+function roleName(){ return S.role==='BROKER'?'Marcos Vieira':'Direção Comercial'; }
+function go(v){ if(role().scope==='own' && ['queues','dist'].includes(v)) return; S.view=v; render(); }
+function setRole(r){ S.role=r; if(ROLES[r].scope==='own' && ['queues','dist'].includes(S.view)) S.view='dash'; render(); }
+function logout(){ LOGGED=false; render(); }
+
+function renderView(){
+  const c=$('#content');
+  if(S.view==='dash') c.innerHTML=viewDash();
+  else if(S.view==='leads') c.innerHTML=viewLeads();
+  else if(S.view==='queues') c.innerHTML=viewQueues();
+  else if(S.view==='dist') c.innerHTML=viewDist();
+  else if(S.view==='inbox'){ c.innerHTML=viewInbox(); setTimeout(waScroll,0); }
+}
+
+// ════════════════════════════════════════════════════════════
+//  LOGIN
+// ════════════════════════════════════════════════════════════
+function renderLogin(){
+  $('#app').innerHTML=`
+  <div class="login">
+    <div class="left">
+      <div class="brand" style="padding:0"><div class="logo">L</div><b style="font-size:18px">LeadFlow</b></div>
+      <div><h1>O lead certo, no corretor certo, na hora certa.</h1>
+      <p>Distribuição automática, transferência rastreada e visão clara da operação — do primeiro contato à venda.</p></div>
+      <p class="mono" style="color:rgba(255,255,255,.3);font-size:12px">LeadFlow Imobiliário · acesso restrito</p>
+    </div>
+    <div class="right">
+      <form onsubmit="doLogin(event)">
+        <h2 style="font-size:20px;font-weight:600">Entrar</h2>
+        <p style="color:var(--muted);font-size:13px;margin-top:4px">Acesse o painel da sua operação.</p>
+        <div class="field" style="margin-top:22px"><label class="label">E-mail</label><input class="input" value="admin@demo.local" type="email"></div>
+        <div class="field"><label class="label">Senha</label><input class="input" value="••••••••" type="password"></div>
+        <button class="btn-primary" style="width:100%;margin-top:8px">Entrar</button>
+        <p style="color:var(--muted);font-size:11px;margin-top:14px;text-align:center">Protótipo — qualquer credencial entra.</p>
+      </form>
+    </div>
+  </div>`;
+}
+function doLogin(e){ e.preventDefault(); LOGGED=true; S.view='dash'; render(); }
+
+// ════════════════════════════════════════════════════════════
+//  DASHBOARD
+// ════════════════════════════════════════════════════════════
+function viewDash(){
+  const isBrokerView = role().scope==='own';
+  let html='';
+  // operacional
+  if(isBrokerView){
+    const mine=S.leads.filter(l=>l.broker==='b1');
+    const ATEND=['DISTRIBUTED','IN_SERVICE','IN_QUALIFICATION','VISIT_SUGGESTED','VISIT_SCHEDULED','FUTURE_PROPOSAL'];
+    const emAtend=mine.filter(l=>ATEND.includes(l.status));
+    const semResp=mine.filter(l=>l.status==='NO_RESPONSE');
+    const encerr=mine.filter(l=>['RESOLVED','LOST','ARCHIVED'].includes(l.status));
+    html+=`<div class="sec-title">Meu painel</div><div class="grid g3">
+      ${stat('Em atendimento',emAtend.length,'leads ativos na sua carteira')}
+      ${stat('Sem resposta',semResp.length,'aguardando retorno do cliente',semResp.length?'warn':'')}
+      ${stat('Encerrados',encerr.length,'convertidos, perdidos ou arquivados','good')}
+    </div>`;
+    html+=brokerBucket('Em atendimento',emAtend);
+    html+=brokerBucket('Sem resposta',semResp);
+    html+=brokerBucket('Encerrados',encerr);
+  } else {
+    const awaiting=S.leads.filter(l=>l.status==='AWAITING_DISTRIBUTION').length;
+    const stale=S.leads.filter(l=>!['RESOLVED','LOST','ARCHIVED'].includes(l.status)&&((l.lastContactAt||l.createdAt))<ago(3)).length;
+    const resolved=S.leads.filter(l=>l.status==='RESOLVED').length, lost=S.leads.filter(l=>l.status==='LOST').length;
+    const rate=resolved+lost?Math.round(resolved/(resolved+lost)*100):0;
+    html+=`<div class="sec-title">Visão gerencial</div><div class="grid g4">
+      ${stat('Aguardando distribuição',awaiting,'',awaiting?'warn':'')}
+      ${stat('Leads parados',stale,'',stale?'warn':'')}
+      ${stat('Conversão',rate+'%',resolved+' ganhos · '+lost+' perdidos','good')}
+      ${stat('Total de leads',S.leads.length,'na base')}
+    </div>`;
+    // funil
+    const counts={}; S.leads.forEach(l=>counts[l.status]=(counts[l.status]||0)+1);
+    const fun=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+    const maxc=Math.max(...fun.map(f=>f[1]));
+    html+=`<div class="sec-title">Leads por status</div><div class="card">${fun.map(([st,n])=>`
+      <div class="barrow"><span style="width:160px;font-size:13px">${STATUS[st].l}</span>
+      <div class="bartrack"><div class="barfill" style="width:${n/maxc*100}%"></div></div>
+      <span class="mono" style="width:30px;text-align:right;font-size:12px;color:var(--muted)">${n}</span></div>`).join('')}</div>`;
+    // carga corretores
+    html+=`<div class="sec-title">Carga por corretor</div><div class="card">${S.brokers.map(b=>{
+      const a=activeCount(b.id),u=Math.round(a/b.max*100);
+      return `<div class="barrow"><span style="width:140px;font-size:13px">${b.name}</span>
+      <div class="bartrack"><div class="barfill ${u>=90?'warn':''}" style="width:${Math.min(u,100)}%"></div></div>
+      <span class="mono" style="width:64px;text-align:right;font-size:12px;color:var(--muted)">${a}/${b.max}</span></div>`;
+    }).join('')}</div>`;
+  }
+  return html;
+}
+function stat(l,v,h='',tone=''){ return `<div class="card stat"><div class="l">${l}</div><div class="v ${tone}">${v}</div>${h?`<div class="h">${h}</div>`:''}</div>`; }
+function brokerBucket(title,list){
+  if(!list.length) return `<div class="sec-title">${title}</div><div class="card"><div class="empty" style="padding:14px">Nenhum lead aqui.</div></div>`;
+  return `<div class="sec-title">${title} <span style="color:var(--muted);font-weight:400">(${list.length})</span></div>
+  <div class="card" style="padding:6px">${list.map(l=>`
+    <div onclick="openLead('${l.id}')" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer" onmouseover="this.style.background='var(--paper)'" onmouseout="this.style.background=''">
+      <div class="avatar" style="width:30px;height:30px;font-size:11px">${initials(l.name)}</div>
+      <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">${l.name}</div>
+      <div style="font-size:11px;color:var(--muted)">${l.city} · ${lastContactLabel(l)}</div></div>
+      ${pill(l.status)}
+    </div>`).join('')}</div>`;
+}
+
+// ════════════════════════════════════════════════════════════
+//  LEADS
+// ════════════════════════════════════════════════════════════
+let leadFilter={q:'',status:''};
+function viewLeads(){
+  const rows=visibleLeads().filter(l=>{
+    if(leadFilter.status && l.status!==leadFilter.status) return false;
+    if(leadFilter.q && !(l.name.toLowerCase().includes(leadFilter.q.toLowerCase())||l.phone.includes(leadFilter.q))) return false;
+    return true;
+  });
+  const statusOpts=Object.entries(STATUS).map(([k,v])=>`<option value="${k}" ${leadFilter.status===k?'selected':''}>${v.l}</option>`).join('');
+  return `
+  <div class="toolbar">
+    <div class="search"><i class="ti ti-search"></i><input class="input" placeholder="Buscar nome ou telefone" value="${leadFilter.q}" oninput="leadFilter.q=this.value;renderView()"></div>
+    <select class="input" onchange="leadFilter.status=this.value;renderView()"><option value="">Todos os status</option>${statusOpts}</select>
+    <div class="spacer"></div>
+    <button class="btn btn-primary btn-sm" onclick="openNewLead()"><i class="ti ti-plus"></i>Novo lead</button>
+  </div>
+  <div class="card" style="overflow:hidden">
+    <table><thead><tr><th>Lead</th><th class="hide-sm">CPF</th><th class="hide-sm">Cidade</th><th>Status</th><th class="hide-sm">Corretor</th><th class="hide-sm">Último contato</th></tr></thead>
+    <tbody>${rows.length?rows.map(l=>`<tr onclick="openLead('${l.id}')">
+      <td><div style="font-weight:500">${l.name}</div><div class="mono" style="font-size:11px;color:var(--muted)">${l.phone}</div></td>
+      <td class="hide-sm mono" style="font-size:12px">${cpfDisplay(l.cpf)}</td>
+      <td class="hide-sm">${l.city}</td>
+      <td>${pill(l.status)}</td>
+      <td class="hide-sm">${l.broker?broker(l.broker).name:'<span style="color:var(--muted)">—</span>'}</td>
+      <td class="hide-sm" style="color:var(--muted);font-size:12px">${fmtDate(l.lastContactAt)}</td>
+    </tr>`).join(''):`<tr><td colspan="6"><div class="empty">Nenhum lead encontrado.</div></td></tr>`}</tbody></table>
+  </div>
+  ${role().scope==='own'?`<p style="font-size:12px;color:var(--muted);margin-top:10px">Como <b>Corretor</b>, você vê apenas sua carteira ativa. O <b>CPF fica visível</b> (você precisa dele para a simulação), mas o <b>telefone fica mascarado</b> para o lead não ser levado para fora do sistema. Troque o papel no topo para ver a diferença.</p>`:''}`;
+}
+
+// ── drawer detalhe do lead
+let openLeadId=null;
+function openLead(id){ openLeadId=id; renderDrawer(); }
+function closeDrawer(){ openLeadId=null; const o=$('#overlay'); if(o)o.remove(); }
+function renderDrawer(){
+  const l=S.leads.find(x=>x.id===openLeadId); if(!l) return;
+  const trans=TRANSITIONS[l.status]||[];
+  let o=$('#overlay'); if(o)o.remove();
+  o=document.createElement('div'); o.id='overlay'; o.className='overlay';
+  o.onclick=e=>{ if(e.target===o) closeDrawer(); };
+  o.innerHTML=`<div class="drawer">
+    <div class="drawer-head">
+      <div><div style="font-size:18px;font-weight:600">${l.name}</div>
+      <div style="margin-top:6px">${pill(l.status)}</div></div>
+      <div class="x" onclick="closeDrawer()"><i class="ti ti-x"></i></div>
+    </div>
+    <div class="drawer-body">
+      <div class="kv"><span class="k">Telefone</span><span class="mono">${phoneDisplay(l.phone)} ${!role().contact?'<i class="ti ti-lock" style="color:var(--muted)" title="Mascarado para o lead não ser levado para fora do sistema"></i>':''}</span></div>
+      <div class="kv"><span class="k">CPF</span><span class="mono">${cpfDisplay(l.cpf)} ${!role().sensitive?'<i class="ti ti-lock" style="color:var(--muted)" title="Mascarado para seu papel"></i>':''}</span></div>
+      <div class="kv"><span class="k">Renda familiar</span><span class="mono">${role().sensitive?('R$ '+l.income.toLocaleString('pt-BR')):'•••••'}</span></div>
+      <div class="kv"><span class="k">Cidade</span><span>${l.city}</span></div>
+      <div class="kv"><span class="k">Origem</span><span>${l.origin}</span></div>
+      <div class="kv"><span class="k">Fila</span><span>${l.queueId?queue(l.queueId).name:'—'}</span></div>
+      <div class="kv"><span class="k">Corretor</span><span>${l.broker?broker(l.broker).name:'—'}</span></div>
+
+      <div style="display:flex;gap:8px;margin:18px 0 6px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="promptInteraction('${l.id}')"><i class="ti ti-message-2"></i>Registrar contato</button>
+        ${role().scope!=='own'||true?`<button class="btn btn-ghost btn-sm" onclick="promptTransfer('${l.id}')"><i class="ti ti-arrows-exchange"></i>Transferir</button>`:''}
+        ${!l.broker&&l.queueId?`<button class="btn btn-primary btn-sm" onclick="runDistribute('${l.id}')"><i class="ti ti-route"></i>Distribuir</button>`:''}
+      </div>
+
+      <div class="label" style="margin-top:16px">Mudar status</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${trans.length?trans.map(t=>`<button class="btn btn-ghost btn-sm" onclick="changeStatus('${l.id}','${t}')">${STATUS[t].l}</button>`).join(''):'<span style="font-size:12px;color:var(--muted)">Status terminal — sem transições.</span>'}
+      </div>
+
+      <div class="label" style="margin-top:22px">Histórico de interações</div>
+      <div class="timeline">
+        ${l.interactions.length?l.interactions.slice().reverse().map(ev=>`<div class="ev"><div class="dot"></div><div class="t">${ev.t}</div><div class="m">${ev.m}</div><div class="m">${fmtDate(ev.d)}</div></div>`).join(''):'<div style="font-size:13px;color:var(--muted)">Sem interações registradas.</div>'}
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(o);
+}
+function changeStatus(id,to){
+  const l=S.leads.find(x=>x.id===id);
+  if(REASON_REQUIRED.includes(to)){
+    const reason=prompt('Motivo é obrigatório para "'+STATUS[to].l+'":');
+    if(!reason||!reason.trim()) return;
+    l.statusReason=reason;
+  }
+  l.status=to; toast('Status alterado para "'+STATUS[to].l+'"'); renderDrawer(); renderView();
+}
+function promptInteraction(id){
+  const l=S.leads.find(x=>x.id===id);
+  const m=prompt('Registrar contato — descreva a interação:');
+  if(!m||!m.trim()) return;
+  l.interactions.push({t:'Contato',m:m.trim(),d:now}); l.lastContactAt=now;
+  toast('Contato registrado'); renderDrawer(); renderView();
+}
+function promptTransfer(id){
+  const l=S.leads.find(x=>x.id===id);
+  const opts=S.brokers.filter(b=>b.id!==l.broker).map(b=>b.id+' — '+b.name).join('\n');
+  const choice=prompt('Transferir para qual corretor? Digite o ID:\n'+opts+'\n\n(motivo será pedido a seguir)');
+  if(!choice) return;
+  const b=broker(choice.trim().split(' ')[0]); if(!b){ toast('Corretor inválido'); return; }
+  const reason=prompt('Motivo da transferência (obrigatório):');
+  if(!reason||!reason.trim()) return;
+  l.broker=b.id; if(['NEW','AWAITING_DISTRIBUTION'].includes(l.status)) l.status='DISTRIBUTED';
+  l.interactions.push({t:'Transferência',m:'→ '+b.name+' · '+reason.trim(),d:now});
+  toast('Lead transferido para '+b.name); renderDrawer(); renderView();
+}
+function runDistribute(id){
+  const l=S.leads.find(x=>x.id===id);
+  const r=distributeLead(l);
+  if(r.result==='ASSIGNED') toast('Distribuído para '+r.broker.name+' ('+queue(l.queueId).strategy+')');
+  else if(r.result==='NO_BROKER') toast('Nenhum corretor elegível na fila');
+  else toast('Não foi possível distribuir');
+  renderDrawer(); renderView();
+}
+
+// ── novo lead
+function openNewLead(){
+  let o=document.createElement('div'); o.id='overlay'; o.className='overlay center';
+  o.onclick=e=>{ if(e.target===o) o.remove(); };
+  o.innerHTML=`<div class="modal">
+    <div style="font-size:16px;font-weight:600;margin-bottom:16px">Novo lead</div>
+    <div class="field"><label class="label">Nome</label><input class="input" id="nl-name" placeholder="Nome do cliente"></div>
+    <div class="field"><label class="label">Telefone</label><input class="input" id="nl-phone" placeholder="(21) 9...."></div>
+    <div class="field"><label class="label">Cidade</label><input class="input" id="nl-city" placeholder="Cidade de interesse"></div>
+    <div class="field"><label class="label">Fila de entrada</label>
+      <select class="input" id="nl-queue">
+        <option value="">— sem fila (fica como Novo) —</option>
+        ${S.queues.map(q=>`<option value="${q.id}">${q.name} ${q.enabled?'(distribui auto)':'(auto desligada)'}</option>`).join('')}
+      </select></div>
+    <p style="font-size:12px;color:var(--muted);margin-top:4px">Se a fila tiver distribuição automática ligada, o lead já cai num corretor.</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+      <button class="btn btn-ghost btn-sm" onclick="this.closest('.overlay').remove()">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="saveNewLead()">Criar lead</button>
+    </div>
+  </div>`;
+  document.body.appendChild(o);
+  setTimeout(()=>$('#nl-name').focus(),50);
+}
+function saveNewLead(){
+  const name=$('#nl-name').value.trim(); if(!name){ toast('Informe o nome'); return; }
+  const qid=$('#nl-queue').value||null;
+  const l=mkLead({name,phone:$('#nl-phone').value||'(21) 90000-0000',cpf:'000.000.000-00',income:5000,city:$('#nl-city').value||'—',origin:'Cadastro manual',status:qid?'AWAITING_DISTRIBUTION':'NEW',queueId:qid,broker:null});
+  S.leads.unshift(l);
+  $('#overlay').remove();
+  // gatilho automático de distribuição
+  if(qid && queue(qid).enabled){
+    const r=distributeLead(l);
+    if(r.result==='ASSIGNED') toast('Lead criado e distribuído para '+r.broker.name);
+    else if(r.result==='NO_BROKER') toast('Lead criado — sem corretor elegível, segue na fila');
+    else toast('Lead criado');
+  } else { toast('Lead criado'); }
+  renderView();
+}
+
+// ════════════════════════════════════════════════════════════
+//  FILAS
+// ════════════════════════════════════════════════════════════
+const STRAT={ROUND_ROBIN:'Revezamento (round-robin)',LEAST_LOADED:'Menos carga',RANDOM:'Aleatório'};
+function viewQueues(){
+  return S.queues.map(q=>{
+    const awaiting=S.leads.filter(l=>l.queueId===q.id&&l.status==='AWAITING_DISTRIBUTION').length;
+    return `<div class="card" style="padding:18px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:160px"><div style="font-weight:600;font-size:15px">${q.name}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">${q.members.length} corretores · ${awaiting} aguardando</div></div>
+        <div class="role-switch"><span class="hide-sm">Estratégia</span>
+          <select class="input" style="width:auto" onchange="setStrat('${q.id}',this.value)">
+            ${Object.entries(STRAT).map(([k,v])=>`<option value="${k}" ${q.strategy===k?'selected':''}>${v}</option>`).join('')}
+          </select></div>
+        <button class="btn btn-ghost btn-sm" onclick="toggleQueue('${q.id}')">${q.enabled?'<i class="ti ti-bolt"></i>Auto ligada':'<i class="ti ti-bolt-off"></i>Auto desligada'}</button>
+        <button class="btn btn-primary btn-sm" onclick="distributeQueue('${q.id}')" ${awaiting?'':'disabled'}><i class="ti ti-route"></i>Distribuir ${awaiting||''}</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+        ${q.members.map(broker).map(b=>`<span class="pill" style="background:var(--paper);color:var(--ink);border:1px solid var(--line)">
+          <span style="width:7px;height:7px;border-radius:50%;background:${b.availability==='AVAILABLE'?'#16b88a':b.availability==='BUSY'?'#f59e0b':'#94a3b8'};margin-right:6px"></span>
+          ${b.name} <span class="mono" style="color:var(--muted);margin-left:5px">${activeCount(b.id)}/${b.max}</span></span>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+function setStrat(id,v){ queue(id).strategy=v; toast('Estratégia: '+STRAT[v]); }
+function toggleQueue(id){ const q=queue(id); q.enabled=!q.enabled; toast(q.name+' — auto '+(q.enabled?'ligada':'desligada')); renderView(); }
+function distributeQueue(id){
+  const q=queue(id);
+  const awaiting=S.leads.filter(l=>l.queueId===id&&l.status==='AWAITING_DISTRIBUTION');
+  let n=0; awaiting.forEach(l=>{ if(distributeLead(l).result==='ASSIGNED') n++; });
+  toast(n?`${n} lead(s) distribuído(s) por ${STRAT[q.strategy]}`:'Nenhum corretor elegível'); renderView();
+}
+
+// ════════════════════════════════════════════════════════════
+//  DISTRIBUIÇÃO (logs)
+// ════════════════════════════════════════════════════════════
+function viewDist(){
+  return `<p style="font-size:13px;color:var(--muted);margin-bottom:14px">Registro de cada decisão do motor — quem recebeu, por qual estratégia, ou por que ninguém recebeu.</p>
+  <div class="card" style="overflow:hidden">
+    <table><thead><tr><th>Quando</th><th>Lead</th><th>Fila</th><th>Resultado</th></tr></thead>
+    <tbody>${S.log.length?S.log.map(e=>`<tr style="cursor:default">
+      <td style="color:var(--muted);font-size:12px">${e.d===now?'agora':fmtDate(e.d)}</td>
+      <td>${e.lead}</td><td>${e.q}</td>
+      <td>${e.result.includes('ATRIBUÍDO')?`<span class="pill" style="color:#0B6552;background:#E6F2EE">${e.result}</span>`:`<span class="pill" style="color:#92400e;background:#fef3c7">${e.result}</span>`}</td>
+    </tr>`).join(''):`<tr><td colspan="4"><div class="empty">Sem distribuições ainda. Crie um lead numa fila ou use "Distribuir" nas Filas.</div></td></tr>`}</tbody></table>
+  </div>`;
+}
+
+render();
+
+// ============ Atendimento (inbox estilo WhatsApp) ============
+function waEsc(s){return (s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function waHash(s){var h=0;for(var i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))|0;}return Math.abs(h);}
+function wa2(n){n=''+n;return n.length<2?'0'+n:n;}
+
+function waThread(l){
+  if(l._thread) return l._thread;
+  var h=waHash(l.id), city=l.city||'a região', origin=(l.origin||'').toLowerCase(), fn=l.name.split(' ')[0];
+  var t=[], hh=8+(h%9), mm=(h%55);
+  function push(from,text){ mm+=1+(waHash(text)%4); while(mm>=60){hh++;mm-=60;} if(hh>23)hh=23; t.push({from:from,text:text,time:wa2(hh)+':'+wa2(mm)}); }
+  var greet;
+  if(origin.indexOf('meta')>=0||origin.indexOf('face')>=0) greet='Oi! Vi o anúncio de vocês no Instagram sobre imóveis em '+city+'. Ainda tem unidade disponível?';
+  else if(origin.indexOf('google')>=0) greet='Olá, achei vocês no Google. Queria informações dos apartamentos em '+city+'.';
+  else if(origin.indexOf('site')>=0||origin.indexOf('portal')>=0) greet='Boa tarde! Preenchi o formulário no site sobre os imóveis em '+city+'.';
+  else if(origin.indexOf('indica')>=0) greet='Oi, um amigo me indicou vocês. Estou procurando apartamento em '+city+'.';
+  else greet='Olá! Queria saber mais sobre os imóveis de vocês em '+city+'.';
+  push('them',greet);
+  var st=l.status;
+  if(st==='IN_SERVICE'||st==='IN_QUALIFICATION'||st==='VISIT_SUGGESTED'){
+    push('me','Olá, '+fn+'! Aqui é o Marcos da Direcional 😊 Temos sim! Você procura de 2 ou 3 quartos?');
+    push('them', (h%2)? 'De 2 quartos. E como funciona o financiamento pela Caixa?' : 'Pode ser 2 quartos. Qual a faixa de valor?');
+    push('me','Perfeito! Te envio as opções e já faço a simulação. Prefere ver por aqui ou marcar uma visita ao decorado?');
+  } else if(st==='VISIT_SCHEDULED'){
+    push('me','Olá, '+fn+'! Aqui é o Marcos. Que tal conhecer o decorado pessoalmente?');
+    push('them','Consigo sim! Pode ser sábado?');
+    push('me','Fechado! Sábado às 10h no estande de vendas. Te mando a localização 📍');
+    push('them','Combinado, muito obrigado!');
+  } else if(st==='NO_RESPONSE'){
+    push('me','Oi, '+fn+'! Aqui é o Marcos da Direcional. Separei algumas opções que combinam com o que você procura. Posso te enviar?');
+    push('me','Fico à disposição quando puder responder 👍');
+  } else if(st==='FUTURE_PROPOSAL'||st==='RESOLVED'){
+    push('me','Oi, '+fn+'! Segue a proposta que conversamos, com as condições de pagamento.');
+    push('them','Recebi! Vou alinhar com a família e te retorno.');
+    push('me','Perfeito, qualquer dúvida estou por aqui 🙌');
+    if(st==='RESOLVED') push('them','Fechamos! Obrigado pela atenção de sempre.');
+  } else if(st==='LOST'){
+    push('me','Oi, '+fn+'! Tudo bem? Conseguiu pensar sobre as opções que enviei?');
+    push('them','Oi! Por enquanto vou deixar pra mais pra frente. Obrigado!');
+  }
+  var unread=0; for(var i=t.length-1;i>=0;i--){ if(t[i].from==='them')unread++; else break; }
+  l._thread=t; if(l._unread===undefined)l._unread=unread;
+  return t;
+}
+
+function waLastAct(l){ var v=(l.lastContactAt!=null)?l.lastContactAt:((l.createdAt!=null)?l.createdAt:0); return (l._unread>0?2e12:0)+v; }
+
+function waLeads(){
+  return S.leads.filter(function(l){
+    if(S.role==='BROKER') return l.broker==='b1' || l.status==='AWAITING_DISTRIBUTION' || l.status==='NEW';
+    return !!l.broker || l.status==='AWAITING_DISTRIBUTION' || l.status==='NEW';
+  }).map(function(l){ waThread(l); return l; }).sort(function(a,b){ return waLastAct(b)-waLastAct(a); });
+}
+
+function viewInbox(){
+  var leads=waLeads();
+  var active = S.chat ? leads.find(function(l){return l.id===S.chat;}) : null;
+  if(S.chat && !active) S.chat=null;
+  var list = leads.map(function(l){
+    var th=l._thread, last=th[th.length-1];
+    var prev=(last.from==='me'?'✓ ':'')+last.text;
+    return '<div class="wa-conv '+(S.chat===l.id?'active':'')+'" onclick="waOpen(\''+l.id+'\')">'
+      +'<div class="wa-av">'+initials(l.name)+'</div>'
+      +'<div style="flex:1;min-width:0">'
+      +'<div class="wa-conv-top"><span class="wa-nm">'+waEsc(l.name)+'</span><span class="wa-tm">'+last.time+'</span></div>'
+      +'<div class="wa-conv-bot"><span class="wa-prev">'+waEsc(prev)+'</span>'+(l._unread?'<span class="wa-badge">'+l._unread+'</span>':'')+'</div>'
+      +'</div></div>';
+  }).join('');
+  return '<div class="wa '+(active?'has-chat':'')+'">'
+    +'<div class="wa-list">'
+    +'<div class="wa-list-head"><b>Atendimento</b><div class="wa-sub"><span class="wa-dot"></span> '+leads.length+' conversas · canal WhatsApp</div></div>'
+    +'<div class="wa-search"><i class="ti ti-search"></i><input placeholder="Buscar conversa" oninput="waFilter(this.value)"></div>'
+    +'<div class="wa-convs" id="waConvs">'+list+'</div>'
+    +'</div>'
+    +(active?waChat(active):waEmpty())
+    +'</div>';
+}
+
+function waChat(l){
+  var th=l._thread;
+  var st=(typeof STATUS!=='undefined'&&STATUS[l.status])?STATUS[l.status]:{l:l.status,c:'#6C7280',bg:'#eee'};
+  var body=th.map(function(m){
+    var check = m.from==='me'?' <i class="ti ti-checks" style="font-size:13px;color:#53bdeb;vertical-align:-2px"></i>':'';
+    return '<div class="bub '+(m.from==='me'?'me':'them')+'">'+waEsc(m.text)+'<span class="t">'+m.time+check+'</span></div>';
+  }).join('');
+  return '<div class="wa-chat">'
+    +'<div class="wa-chat-head">'
+    +'<div class="wa-back" onclick="waClose()"><i class="ti ti-arrow-left"></i></div>'
+    +'<div class="wa-av">'+initials(l.name)+'</div>'
+    +'<div style="flex:1;min-width:0"><div class="wa-nm">'+waEsc(l.name)+'</div>'
+    +'<div class="wa-sub2">'+l.phone+' · <i class="ti ti-brand-whatsapp" style="color:#25D366;font-size:13px"></i> WhatsApp</div></div>'
+    +'<span class="wa-status" style="color:'+st.c+';background:'+st.bg+'">'+st.l+'</span>'
+    +'</div>'
+    +'<div class="wa-body" id="chatBody"><div class="wa-day">hoje</div>'+body+'</div>'
+    +'<form class="wa-composer" onsubmit="waSend(event)">'
+    +'<i class="ti ti-mood-smile wa-cicon"></i><i class="ti ti-paperclip wa-cicon"></i>'
+    +'<input id="waInput" placeholder="Digite uma mensagem" autocomplete="off">'
+    +'<button class="wa-send" type="submit"><i class="ti ti-send"></i></button>'
+    +'</form></div>';
+}
+
+function waEmpty(){
+  return '<div class="wa-empty"><div class="ic"><i class="ti ti-brand-whatsapp"></i></div>'
+    +'<div style="font-size:16px;font-weight:600;color:var(--ink)">Central de atendimento</div>'
+    +'<p style="margin-top:6px;max-width:280px;font-size:13px">Selecione uma conversa à esquerda. Os leads que chegam para esta conta aparecem aqui automaticamente.</p></div>';
+}
+
+function waOpen(id){ S.chat=id; var l=S.leads.find(function(x){return x.id===id;}); if(l)l._unread=0; waRender(); }
+function waClose(){ S.chat=null; waRender(); }
+function waSend(e){ e.preventDefault(); var inp=document.getElementById('waInput'); if(!inp)return; var v=inp.value.trim(); if(!v)return; var l=S.leads.find(function(x){return x.id===S.chat;}); if(!l)return; var d=new Date(); l._thread.push({from:'me',text:v,time:wa2(d.getHours())+':'+wa2(d.getMinutes())}); l._unread=0; if(l.status==='AWAITING_DISTRIBUTION'||l.status==='NEW'||l.status==='DISTRIBUTED')l.status='IN_SERVICE'; waRender(); }
+function waRender(){ var c=document.getElementById('content'); if(c)c.innerHTML=viewInbox(); waScroll(); var i=document.getElementById('waInput'); if(i)i.focus(); }
+function waScroll(){ var b=document.getElementById('chatBody'); if(b)b.scrollTop=b.scrollHeight; }
+function waFilter(q){ q=(q||'').toLowerCase(); var els=document.querySelectorAll('#waConvs .wa-conv'); els.forEach(function(el){ el.style.display = el.innerText.toLowerCase().indexOf(q)>=0?'':'none'; }); }
+
+</script>
+<a href="index.html" title="Voltar à demonstração" style="position:fixed;right:14px;bottom:14px;z-index:99999;background:#0E7C66;border:1px solid #0B6552;color:#fff;padding:9px 14px;border-radius:10px;font:600 13px Geist,system-ui,sans-serif;text-decoration:none;display:flex;align-items:center;gap:6px;box-shadow:0 6px 20px rgba(13,17,23,.25)"><i class="ti ti-arrow-left"></i> Demonstração</a>
+</body>
+</html>

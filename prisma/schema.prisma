@@ -1,0 +1,816 @@
+// ============================================================
+//  LeadFlow Imobiliário — schema.prisma  (Sprint 1 / núcleo)
+//  Foco desta entrega: multi-tenancy + acesso + RBAC.
+//
+//  Princípio que guia TUDO: cada dado de negócio pertence a um
+//  Tenant e NUNCA pode cruzar a fronteira de outro. Por isso
+//  quase toda tabela carrega tenantId e tem índice por ele.
+//
+//  ATENÇÃO: este arquivo é só METADE do isolamento. A outra
+//  metade (Prisma Client Extension + Row-Level Security no
+//  Postgres) é código/SQL separado — vem no próximo passo.
+//  Schema sozinho não impede vazamento entre tenants.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")   // segredo só em .env, jamais no código
+}
+
+// ─────────────────────────────────────────────────────────────
+//  PLANO DA PLATAFORMA  (você, dono do SaaS)
+//  Camada de administração ACIMA de qualquer tenant: cria
+//  tenants, suspende inadimplentes, vê métricas globais.
+//  Tem login e painel próprios. Repare: SEM tenantId.
+//  Os dados de PlatformAdmin nunca são expostos a um tenant.
+//  É outra "porta de entrada" — separada do login dos clientes.
+// ─────────────────────────────────────────────────────────────
+model PlatformAdmin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String                          // Argon2id — nunca senha pura
+  name         String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────
+//  PLANO (assinatura) — mínimo por enquanto.
+//  Global (sem tenantId): é um catálogo compartilhado.
+//  Cobrança/Stripe ficam para depois; aqui só vínculo + limites.
+// ─────────────────────────────────────────────────────────────
+model Plan {
+  id               String   @id @default(cuid())
+  name             String   @unique           // "Trial", "Pro", "Enterprise"
+  maxUsers         Int                         // teto de usuários do tenant
+  maxLeadsPerMonth Int                         // teto de leads/mês
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenants Tenant[]
+}
+
+// ─────────────────────────────────────────────────────────────
+//  TENANT = a imobiliária cliente. Topo da hierarquia de dados.
+// ─────────────────────────────────────────────────────────────
+model Tenant {
+  id        String       @id @default(cuid())
+  name      String                             // "Imobiliária Silva"
+  slug      String       @unique               // "imobiliaria-silva"
+  // slug NÃO é usado no login hoje (login é por e-mail), mas já
+  // fica modelado para o dia em que adotarmos subdomínio.
+  status    TenantStatus @default(TRIAL)
+  planId    String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  plan              Plan                @relation(fields: [planId], references: [id], onDelete: Restrict)
+  users             User[]
+  roles             Role[]
+  rolePermissions   RolePermission[]
+  refreshTokens     RefreshToken[]
+  departments       Department[]
+  teams             Team[]
+  queues            Queue[]
+  queueMemberships  QueueMembership[]
+  brokerProfiles    BrokerProfile[]
+  campaigns         Campaign[]
+  leads             Lead[]
+  leadAssignments   LeadAssignment[]
+  leadTransfers     LeadTransfer[]
+  leadStatusHistory LeadStatusHistory[]
+  interactions      Interaction[]
+  tasks             Task[]
+  passwordResetTokens PasswordResetToken[]
+  whatsappAccount     WhatsAppAccount?
+  conversations       Conversation[]
+  whatsappMessages    Message[]
+  adRoutes            AdRoute[]
+
+  @@index([planId])
+}
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED   // inadimplência: bloqueia o acesso, mas PRESERVA os dados
+  CANCELED
+}
+
+// ─────────────────────────────────────────────────────────────
+//  USER = pessoa que loga DENTRO de um tenant.
+//  Decisão MVP: 1 usuário pertence a exatamente 1 tenant.
+// ─────────────────────────────────────────────────────────────
+model User {
+  id           String   @id @default(cuid())
+  tenantId     String                          // ★ entra em TODA query
+  email        String   @unique                // global único — ver nota
+  passwordHash String                          // Argon2id
+  name         String
+  isActive     Boolean  @default(true)         // desativar ≠ deletar
+  roleId       String
+  teamId       String?                         // equipe (define o escopo do coordenador)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role          Role           @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  team          Team?          @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  refreshTokens RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  brokerProfile BrokerProfile?
+  tasksAssigned Task[]         @relation("UserTasks")
+
+  @@index([tenantId])
+  @@index([roleId])
+  @@index([teamId])
+}
+
+// NOTA — por que email é @unique GLOBAL:
+// O tenant é descoberto pelo e-mail no momento do login (sua
+// decisão). Se o mesmo e-mail existisse em dois tenants, o login
+// ficaria ambíguo ("entrar em qual?"). Logo, e-mail único no
+// sistema inteiro. Consequência: a mesma pessoa não pode ter duas
+// contas com o mesmo e-mail em imobiliárias diferentes — o que,
+// para o seu caso, é até desejável.
+// Se um dia migrar para login por subdomínio, troca-se por
+// @@unique([tenantId, email]); mas aí a mecânica de login muda.
+
+// ─────────────────────────────────────────────────────────────
+//  RBAC
+//  Role  -> POR TENANT (cada cliente tem o seu conjunto)
+//  Permission -> catálogo GLOBAL (vocabulário fixo de ações)
+//  O que varia por tenant é QUAIS permissions cada role tem.
+// ─────────────────────────────────────────────────────────────
+model Role {
+  id        String   @id @default(cuid())
+  tenantId  String
+  type      RoleType                           // referência estável p/ o código
+  name      String                             // rótulo exibível na UI
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users       User[]
+  permissions RolePermission[]
+
+  @@unique([tenantId, type])   // 1 role de cada tipo por tenant
+  @@index([tenantId])
+}
+
+enum RoleType {
+  ADMIN            // Administrador do TENANT (dono da imobiliária)
+  SALES_MANAGER    // Gestor comercial
+  COORDINATOR      // Coordenador
+  BROKER           // Corretor
+  ATTENDANT        // Atendimento
+  QUEUE_SUPERVISOR // Supervisor de fila
+  VIEWER           // Visualizador (somente leitura)
+}
+
+// Catálogo global de ações. "lead:transfer" significa o mesmo
+// para todo mundo — por isso sem tenantId.
+model Permission {
+  id          String @id @default(cuid())
+  key         String @unique                   // ex.: "lead:read", "lead:transfer"
+  description String
+
+  roles RolePermission[]
+}
+
+// Junção Role <-> Permission.
+// tenantId aqui é DENORMALIZADO (a fonte da verdade é a Role).
+// Existe por um motivo só: deixar a política de RLS desta tabela
+// IDÊNTICA à das outras ("tenantId = tenant atual"), em vez de uma
+// política especial com subconsulta. Uniformidade = menos surpresa
+// = menos bug de segurança. O seed/app mantém este campo em sincronia.
+model RolePermission {
+  tenantId     String
+  roleId       String
+  permissionId String
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@index([tenantId])
+}
+
+// ─────────────────────────────────────────────────────────────
+//  REFRESH TOKEN — sessão persistente, com rotação e detecção de
+//  reuso. Guardamos só o HASH do token (nunca o token em si). A app
+//  acessa esta tabela apenas pelo cliente ELEVADO (login/refresh/
+//  logout acontecem sem contexto de tenant). A RLS aqui é defesa em
+//  profundidade: o tenantId mantém a regra "toda tabela de tenant
+//  tem política", mesmo que na prática só o bypass a toque.
+// ─────────────────────────────────────────────────────────────
+model RefreshToken {
+  id           String    @id @default(cuid())
+  tenantId     String
+  userId       String
+  familyId     String // agrupa a cadeia de rotações (p/ detectar roubo)
+  tokenHash    String    @unique // sha256 do token opaco enviado ao cliente
+  expiresAt    DateTime
+  revokedAt    DateTime? // preenchido ao rotacionar (substituído) ou no logout
+  replacedById String? // id do token que substituiu este, na rotação
+  userAgent    String? // metadados de auditoria — não são sensíveis
+  ip           String?
+  createdAt    DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([familyId])
+}
+
+// ─────────────────────────────────────────────────────────────
+//  RECUPERAÇÃO DE SENHA
+//  Mesmo princípio do RefreshToken: o que vai para o e-mail do
+//  usuário é um token OPACO aleatório; no banco guardamos só o
+//  sha256 dele. Uso ÚNICO (usedAt) e validade curta (expiresAt).
+//  Se o banco vazar, os tokens não são reutilizáveis.
+// ─────────────────────────────────────────────────────────────
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tenantId  String
+  userId    String
+  tokenHash String    @unique // sha256 do token enviado ao usuário
+  expiresAt DateTime
+  usedAt    DateTime? // preenchido no momento em que a senha é trocada
+  ip        String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────────────────────
+//  AUDIT LOG — "quem fez o quê, quando". Trilha de segurança/LGPD.
+//
+//  Referências SOFT (sem FK): o log precisa SOBREVIVER à exclusão do
+//  usuário/tenant que ele descreve (retenção para auditoria). actorId
+//  guarda um id de User OU de PlatformAdmin — actorType desambigua.
+//
+//  REGRA DE OURO: NUNCA grave conteúdo sensível aqui (CPF, renda,
+//  senha). O log registra "Fulano acessou o documento #123", jamais
+//  o conteúdo do documento.
+// ─────────────────────────────────────────────────────────────
+enum ActorType {
+  USER
+  PLATFORM_ADMIN
+  ANONYMOUS
+  SYSTEM // ação automática (ex.: distribuição disparada pelo webhook)
+}
+
+model AuditLog {
+  id           String    @id @default(cuid())
+  tenantId     String? // soft ref; null em eventos de plataforma/anônimos
+  actorId      String? // id de User ou PlatformAdmin; null se anônimo
+  actorType    ActorType
+  action       String // ex.: "auth.login.success"
+  resourceType String? // ex.: "Lead"
+  resourceId   String?
+  ip           String?
+  userAgent    String?
+  metadata     Json? // contexto extra — NUNCA dado sensível
+  createdAt    DateTime  @default(now())
+
+  @@index([tenantId])
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ============================================================
+//  SPRINT 2 — DOMÍNIO: organização, leads, atribuição, atendimento.
+//  Toda tabela abaixo é tenant-aware: tenantId (FK p/ Tenant, cascade)
+//  + índice + política de RLS (ver enable_rls_sprint2.sql).
+// ============================================================
+
+// ── ORGANIZAÇÃO ─────────────────────────────────────────────
+
+model Department {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  teams  Team[]
+
+  @@index([tenantId])
+}
+
+model Team {
+  id           String   @id @default(cuid())
+  tenantId     String
+  departmentId String
+  name         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  members    User[]
+
+  @@index([tenantId])
+  @@index([departmentId])
+}
+
+// ── PERFIL DO CORRETOR ──────────────────────────────────────
+
+enum BrokerAvailability {
+  AVAILABLE
+  BUSY
+  AWAY // ausência/férias — sai da distribuição
+  OFFLINE
+}
+
+model BrokerProfile {
+  id                  String             @id @default(cuid())
+  tenantId            String
+  userId              String             @unique // 1:1 com User
+  availability        BrokerAvailability @default(OFFLINE)
+  maxActiveLeads      Int                @default(50) // capacidade
+  acceptsDistribution Boolean            @default(true) // liga/desliga na distribuição
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  queues      QueueMembership[]
+  assignments LeadAssignment[]
+
+  @@index([tenantId])
+}
+
+// ── FILAS ───────────────────────────────────────────────────
+
+model Queue {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  isActive  Boolean  @default(true)
+
+  // Distribuição (estratégia + cursor do round-robin vivem aqui; a linha
+  // da fila também é o ponto de trava que serializa a distribuição)
+  distributionStrategy        DistributionStrategy @default(ROUND_ROBIN)
+  distributionEnabled         Boolean              @default(true)
+  lastAssignedBrokerProfileId String? // cursor round-robin (soft ref)
+
+  // ── Cadeia de distribuição (regional → gerentes → corretores) ──
+  // Uma fila pode ter filhas. Fila COM filhas = roteador (ex.: "Regional
+  // Nova Iguaçu"): ela não tem corretores, só reparte entre as filhas.
+  // Fila SEM filhas = folha (ex.: "Gerente Márcio"), onde os corretores
+  // ficam e o rodízio acontece como sempre.
+  parentId      String?
+  routingWeight Int     @default(50) // peso/percentual dentro da fila-pai
+  routedCount   Int     @default(0)  // quantos já foram por aqui (mantém a proporção)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members  QueueMembership[]
+  leads    Lead[]
+  parent   Queue?            @relation("QueueTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children Queue[]           @relation("QueueTree")
+  adRoutes AdRoute[]
+
+  @@index([tenantId])
+  @@index([parentId])
+}
+
+// N:N BrokerProfile <-> Queue (tenantId denormalizado p/ RLS uniforme)
+model QueueMembership {
+  tenantId        String
+  queueId         String
+  brokerProfileId String
+  createdAt       DateTime @default(now())
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  queue         Queue         @relation(fields: [queueId], references: [id], onDelete: Cascade)
+  brokerProfile BrokerProfile @relation(fields: [brokerProfileId], references: [id], onDelete: Cascade)
+
+  @@id([queueId, brokerProfileId])
+  @@index([tenantId])
+  @@index([brokerProfileId])
+}
+
+// ── REFERÊNCIA DE ORIGEM ────────────────────────────────────
+
+model Campaign {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leads  Lead[]
+
+  @@index([tenantId])
+}
+
+enum LeadOrigin {
+  SITE
+  LANDING_PAGE
+  WHATSAPP
+  INSTAGRAM
+  FACEBOOK_ADS
+  GOOGLE_ADS
+  REFERRAL
+  SALES_STAND
+  PHONE_CALL
+  MANUAL_IMPORT
+  INTEGRATION
+}
+
+enum PropertyType {
+  APARTMENT
+  HOUSE
+  LOT
+  COMMERCIAL
+  OTHER
+}
+
+// Os 13 status conversados. Trate como MÁQUINA DE ESTADOS: valide as
+// transições permitidas no service (um lead não pula de RESOLVED p/ NEW).
+enum LeadStatus {
+  NEW
+  AWAITING_DISTRIBUTION
+  DISTRIBUTED
+  IN_SERVICE
+  NO_RESPONSE
+  IN_QUALIFICATION
+  VISIT_SUGGESTED
+  VISIT_SCHEDULED
+  FUTURE_PROPOSAL
+  RESOLVED
+  LOST
+  TO_REDISTRIBUTE
+  ARCHIVED
+}
+
+// ── LEAD ────────────────────────────────────────────────────
+// Concentra os dados sensíveis (CPF, renda, entrada) num lugar só —
+// mais fácil de proteger, auditar e, na LGPD, anonimizar/apagar.
+// O MASCARAMENTO de CPF é decidido na CAMADA DE APLICAÇÃO conforme a
+// permissão: o banco guarda o valor; o código decide quem vê inteiro.
+
+model Lead {
+  id       String @id @default(cuid())
+  tenantId String
+
+  // Contato
+  name     String
+  phone    String
+  whatsapp String?
+  email    String?
+
+  // SENSÍVEL
+  cpf                  String? // exibir mascarado p/ quem não tem permissão
+  familyIncome         Decimal? @db.Decimal(12, 2)
+  downPaymentAvailable Decimal? @db.Decimal(12, 2)
+  hasFGTS              Boolean?
+
+  // Interesse
+  cityOfInterest         String?
+  neighborhoodOfInterest String?
+  enterpriseOfInterest   String? // string por ora; entidade Enterprise é futura
+  propertyType           PropertyType?
+
+  // Origem / estado
+  origin         LeadOrigin
+  sourceDetail   String? // UTM, página, detalhe livre
+  campaignId     String?
+
+  // Atribuição de anúncio (Click-to-WhatsApp). Vem no `referral` da PRIMEIRA
+  // mensagem; se não capturar na hora, a Meta não reenvia.
+  adSourceId  String? // id do anúncio na Meta — liga o lead à campanha
+  adHeadline  String? // título do anúncio, para leitura humana
+  ctwaClid    String? // click id; usado depois na Conversions API da Meta
+  status         LeadStatus @default(NEW)
+  currentQueueId String? // fila ATUAL (atalho de estado)
+
+  // Datas operacionais
+  lastContactAt DateTime?
+  nextActionAt  DateTime?
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaign      Campaign?           @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  currentQueue  Queue?              @relation(fields: [currentQueueId], references: [id], onDelete: SetNull)
+  assignments   LeadAssignment[]
+  transfers     LeadTransfer[]
+  statusHistory LeadStatusHistory[]
+  interactions  Interaction[]
+  tasks         Task[]
+  conversation  Conversation?
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([currentQueueId])
+  @@index([campaignId])
+}
+
+// ── ATRIBUIÇÃO (histórico — o CORAÇÃO) ──────────────────────
+// O "corretor responsável" NÃO é um campo no Lead. É a atribuição com
+// endedAt = null. Cada troca encerra a atual e abre uma nova, então o
+// histórico de quem cuidou do lead nunca se perde.
+// Um índice único PARCIAL (no enable_rls_sprint2.sql) garante no banco
+// que existe no máximo 1 atribuição ATIVA por lead.
+
+enum AssignmentReason {
+  AUTO_DISTRIBUTION
+  MANUAL
+  TRANSFER
+  REDISTRIBUTION
+}
+
+model LeadAssignment {
+  id              String           @id @default(cuid())
+  tenantId        String
+  leadId          String
+  brokerProfileId String
+  reason          AssignmentReason
+  assignedById    String? // userId de quem atribuiu (soft ref); null = sistema
+  assignedAt      DateTime         @default(now())
+  endedAt         DateTime? // null = ATIVA
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead          Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  brokerProfile BrokerProfile @relation(fields: [brokerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([leadId])
+  @@index([brokerProfileId])
+}
+
+// ── TRANSFERÊNCIA (evento) ──────────────────────────────────
+// from/to são soft refs (sem FK) p/ evitar dezenas de back-relations.
+enum TransferType {
+  BROKER_TO_BROKER
+  BROKER_TO_QUEUE
+  QUEUE_TO_BROKER
+  TEAM_TO_TEAM
+  REDISTRIBUTION
+}
+
+model LeadTransfer {
+  id                  String       @id @default(cuid())
+  tenantId            String
+  leadId              String
+  type                TransferType
+  fromBrokerProfileId String?
+  toBrokerProfileId   String?
+  fromQueueId         String?
+  toQueueId           String?
+  reason              String // OBRIGATÓRIO — sem motivo, não há transferência
+  performedById       String? // userId (soft ref); null = sistema (redistribuição)
+  createdAt           DateTime     @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([leadId])
+}
+
+// ── HISTÓRICO DE STATUS ─────────────────────────────────────
+model LeadStatusHistory {
+  id          String      @id @default(cuid())
+  tenantId    String
+  leadId      String
+  fromStatus  LeadStatus? // null na criação
+  toStatus    LeadStatus
+  reason      String? // exija no service p/ LOST/ARCHIVED
+  changedById String? // soft ref
+  createdAt   DateTime    @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([leadId])
+}
+
+// ── ATENDIMENTO ─────────────────────────────────────────────
+enum InteractionType {
+  CALL
+  WHATSAPP
+  EMAIL
+  NOTE
+  MEETING
+}
+
+enum InteractionOutcome {
+  ANSWERED
+  NO_ANSWER
+  BUSY
+  INVALID_CONTACT
+  SCHEDULED
+}
+
+model Interaction {
+  id          String              @id @default(cuid())
+  tenantId    String
+  leadId      String
+  type        InteractionType
+  outcome     InteractionOutcome?
+  content     String?
+  createdById String? // soft ref
+  createdAt   DateTime            @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([leadId])
+}
+
+// ── TAREFAS / FOLLOW-UP ─────────────────────────────────────
+enum TaskStatus {
+  PENDING
+  DONE
+  CANCELED
+}
+
+model Task {
+  id               String     @id @default(cuid())
+  tenantId         String
+  leadId           String? // pode ou não estar ligada a um lead
+  assignedToUserId String
+  title            String
+  description      String?
+  status           TaskStatus @default(PENDING)
+  dueAt            DateTime?
+  createdById      String? // soft ref
+  completedAt      DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead       Lead?  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignedTo User   @relation("UserTasks", fields: [assignedToUserId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([leadId])
+  @@index([assignedToUserId])
+  @@index([status])
+}
+
+// ── DISTRIBUIÇÃO (Sprint 3) ─────────────────────────────────
+
+enum DistributionStrategy {
+  ROUND_ROBIN // reveza em ordem estável
+  LEAST_LOADED // quem tem menos leads ativos
+  RANDOM // sorteio uniforme
+}
+
+enum DistributionResult {
+  ASSIGNED // atribuído a um corretor
+  NO_BROKER_AVAILABLE // ninguém elegível (disponibilidade/capacidade)
+  NO_QUEUE // lead sem fila
+  QUEUE_INACTIVE // fila inexistente/inativa
+  ALREADY_ASSIGNED // lead já tinha corretor ativo
+}
+
+// Observabilidade de cada tentativa de distribuição. Soft refs (sem FK),
+// igual ao AuditLog: é registro histórico e deve sobreviver à remoção de
+// lead/fila/corretor. A RLS protege por tenantId (enable_rls_distribution.sql).
+model DistributionLog {
+  id              String                @id @default(cuid())
+  tenantId        String
+  leadId          String
+  queueId         String?
+  strategy        DistributionStrategy?
+  result          DistributionResult
+  brokerProfileId String? // preenchido quando result = ASSIGNED
+  candidateCount  Int                   @default(0)
+  message         String?
+  createdAt       DateTime              @default(now())
+
+  @@index([tenantId])
+  @@index([leadId])
+  @@index([queueId])
+}
+
+// ════════════════════════════════════════════════════════════
+//  WhatsApp (Cloud API oficial da Meta) — multi-tenant
+// ════════════════════════════════════════════════════════════
+
+// Credenciais do WhatsApp Business de UM tenant. Token e app secret são
+// guardados CRIPTOGRAFADOS (AES-256-GCM) — nunca em texto puro. O webhook
+// é único (um app Meta) e roteia para o tenant pelo phoneNumberId.
+model WhatsAppAccount {
+  id             String   @id @default(cuid())
+  tenantId       String   @unique
+  phoneNumberId  String   @unique // id do número na Meta (roteia o webhook)
+  wabaId         String?           // WhatsApp Business Account id
+  displayNumber  String?           // ex.: +55 21 99999-0000 (exibição)
+  accessTokenEnc String            // token da Graph API, CRIPTOGRAFADO
+  verifyToken    String            // token de verificação do webhook
+  appSecretEnc   String?           // app secret p/ validar assinatura, CRIPTOGRAFADO
+  // Fila em que os leads vindos do WhatsApp entram. Se null, o sistema
+  // escolhe a primeira fila ativa com distribuição ligada.
+  defaultQueueId String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+// Uma conversa por lead. Atalhos de estado (último texto, não-lidos) e o
+// fim da janela de 24h de atendimento livre do WhatsApp (CSW).
+model Conversation {
+  id              String    @id @default(cuid())
+  tenantId        String
+  leadId          String    @unique
+  waPhone         String              // número do cliente em E.164 (só dígitos)
+  lastMessageAt   DateTime?
+  lastMessageText String?
+  unreadCount     Int       @default(0)
+  windowExpiresAt DateTime?           // fim da janela de 24h
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead     Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([tenantId, lastMessageAt])
+  @@index([tenantId, waPhone])
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  tenantId       String
+  conversationId String
+  direction      MessageDirection
+  waMessageId    String?          @unique // id da Meta — idempotência
+  body           String
+  status         MessageStatus    @default(SENT)
+  sentByUserId   String?                   // quem enviou (OUTBOUND humano)
+  createdAt      DateTime         @default(now())
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, conversationId, createdAt])
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  RECEIVED  // recebida do cliente
+  SENT      // enviada para a Meta
+  DELIVERED // entregue no aparelho
+  READ      // lida pelo cliente
+  FAILED    // falhou
+}
+
+/// Roteamento por anúncio: manda o lead de um anúncio específico para uma
+/// fila específica. Ex.: anúncio "Queimados" cai no regional de Queimados;
+/// anúncio "Nova Iguaçu" cai no regional de Nova Iguaçu.
+///
+/// O `adSourceId` é o ID do anúncio na Meta, que chega no `referral` da
+/// primeira mensagem do lead (Click-to-WhatsApp).
+model AdRoute {
+  id         String   @id @default(cuid())
+  tenantId   String
+  adSourceId String // ID do anúncio na Meta
+  label      String? // nome amigável, ex.: "Campanha Queimados - Set/26"
+  queueId    String // fila/regional que recebe
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  queue  Queue  @relation(fields: [queueId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, adSourceId]) // um anúncio aponta para uma fila só
+  @@index([tenantId])
+  @@index([queueId])
+}
