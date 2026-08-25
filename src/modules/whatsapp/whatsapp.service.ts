@@ -35,7 +35,11 @@ export class WhatsAppService {
       wabaId: dto.wabaId ?? null,
       displayNumber: dto.displayNumber ?? null,
       accessTokenEnc: encryptSecret(dto.accessToken),
-      verifyToken: dto.verifyToken ?? null,
+      // Coluna NOT NULL no schema. A verificação do webhook usa o token
+      // GLOBAL do app (WHATSAPP_WEBHOOK_VERIFY_TOKEN), então aqui basta um
+      // valor vazio quando o admin não informa um por tenant. Gravar null
+      // invalidava o upsert inteiro (PrismaClientValidationError -> 500).
+      verifyToken: dto.verifyToken ?? '',
       appSecretEnc: dto.appSecret ? encryptSecret(dto.appSecret) : null,
       defaultQueueId: dto.defaultQueueId || null,
       active: true,
