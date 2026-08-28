@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Query, Req, Res } from '@nestjs/common';
+import { Controller, Get, Logger, Post, Query, Req, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { Public } from '../../common/auth/auth.decorators';
 import { SkipCsrf } from '../../common/auth/csrf.guard';
@@ -13,6 +13,8 @@ import { verifySignature } from './whatsapp.signature';
  */
 @Controller('whatsapp/webhook')
 export class WhatsAppWebhookController {
+  private readonly logger = new Logger(WhatsAppWebhookController.name);
+
   constructor(private readonly inbound: WhatsAppInboundService) {}
 
   /** Verificação inicial: a Meta manda um desafio que devolvemos. */
@@ -38,9 +40,28 @@ export class WhatsAppWebhookController {
   async receive(@Req() req: any, @Res() res: Response) {
     const appSecret = process.env.WHATSAPP_APP_SECRET;
     const sig = req.headers['x-hub-signature-256'] as string | undefined;
-    if (!appSecret || !verifySignature(req.rawBody, sig, appSecret)) {
+
+    // Log de diagnóstico: sem isto, uma recusa aqui é invisível — a Meta
+    // só mostra "falhou" do lado dela e o motivo real fica escondido.
+    if (!appSecret) {
+      this.logger.error(
+        'Evento recebido, mas WHATSAPP_APP_SECRET não está definida no ambiente — recusado.',
+      );
       return res.status(401).send('invalid signature');
     }
+    if (!sig) {
+      this.logger.warn(
+        'Evento recebido sem o cabeçalho x-hub-signature-256 — recusado.',
+      );
+      return res.status(401).send('invalid signature');
+    }
+    if (!verifySignature(req.rawBody, sig, appSecret)) {
+      this.logger.warn(
+        'Assinatura inválida — o WHATSAPP_APP_SECRET do servidor não confere com o App Secret da Meta.',
+      );
+      return res.status(401).send('invalid signature');
+    }
+    this.logger.log('Evento do WhatsApp recebido e assinatura validada.');
     // Responde rápido (a Meta espera 200 em poucos segundos) e processa depois.
     res.status(200).send('ok');
     try {
