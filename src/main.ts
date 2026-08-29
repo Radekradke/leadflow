@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { validateEnv } from './common/config/env.validation';
+import { QueueWorkerService } from './worker/queue-worker.service';
 
 async function bootstrap() {
   // Falha cedo se faltar configuração essencial.
@@ -30,6 +31,15 @@ async function bootstrap() {
     origin: process.env.FRONTEND_ORIGIN,
     credentials: true,
   });
+
+  // Milestone 1 (fase de teste, custo baixo): o worker de fila roda dentro
+  // deste MESMO processo, junto com o HTTP. Quando o volume justificar
+  // isolar (Render Background Worker à parte, por exemplo), basta subir
+  // esse serviço novo com `node dist/worker.js` e setar
+  // RUN_QUEUE_WORKER_IN_PROCESS=false aqui — sem tocar em lógica.
+  if (process.env.RUN_QUEUE_WORKER_IN_PROCESS !== 'false') {
+    app.get(QueueWorkerService).start();
+  }
 
   await app.listen(process.env.PORT ?? 3000);
 }

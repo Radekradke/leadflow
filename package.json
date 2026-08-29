@@ -8,6 +8,8 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
+    "start:worker": "node dist/worker.js",
+    "start:worker:dev": "ts-node --transpile-only src/worker.ts",
     "lint": "eslint \"src/**/*.ts\" --fix",
     "test": "jest",
     "prisma:generate": "prisma generate",

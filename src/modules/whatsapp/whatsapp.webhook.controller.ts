@@ -2,7 +2,7 @@ import { Controller, Get, Logger, Post, Query, Req, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { Public } from '../../common/auth/auth.decorators';
 import { SkipCsrf } from '../../common/auth/csrf.guard';
-import { WhatsAppInboundService } from './whatsapp.inbound.service';
+import { PgmqService } from '../../common/queue/pgmq.service';
 import { verifySignature } from './whatsapp.signature';
 
 /**
@@ -15,7 +15,7 @@ import { verifySignature } from './whatsapp.signature';
 export class WhatsAppWebhookController {
   private readonly logger = new Logger(WhatsAppWebhookController.name);
 
-  constructor(private readonly inbound: WhatsAppInboundService) {}
+  constructor(private readonly queue: PgmqService) {}
 
   /** Verificação inicial: a Meta manda um desafio que devolvemos. */
   @Public()
@@ -62,13 +62,21 @@ export class WhatsAppWebhookController {
       return res.status(401).send('invalid signature');
     }
     this.logger.log('Evento do WhatsApp recebido e assinatura validada.');
-    // Responde rápido (a Meta espera 200 em poucos segundos) e processa depois.
-    res.status(200).send('ok');
+    // Só GRAVA na fila (pgmq) e responde — não processa mais aqui. Isso é
+    // o que sobrevive a um restart do processo no meio de uma rajada de
+    // campanha: o evento fica persistido no Postgres até um worker
+    // consumir, em vez de morrer com o processo Node. O processamento em
+    // si (WhatsAppInboundService.handleEvent) roda no worker (ver
+    // src/worker/queue-worker.service.ts), sem nenhuma mudança na lógica.
     try {
       const payload = JSON.parse((req.rawBody as Buffer).toString('utf8'));
-      await this.inbound.handleEvent(payload);
-    } catch {
-      // Já respondemos 200; falhas são logadas no serviço de ingestão.
+      await this.queue.send('whatsapp_inbound', payload);
+      res.status(200).send('ok');
+    } catch (err) {
+      // Não conseguimos nem enfileirar: melhor a Meta reentregar do que
+      // fingir sucesso e perder o evento de vez.
+      this.logger.error(`Falha ao enfileirar evento do WhatsApp: ${String(err)}`);
+      res.status(500).send('failed to enqueue');
     }
   }
 }
