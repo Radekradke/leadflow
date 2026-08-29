@@ -27,8 +27,13 @@ async function bootstrap() {
 
   // CORS com credenciais: obrigatório para cookies. origin NUNCA pode ser
   // '*' quando credentials é true. Use o domínio exato do frontend.
+  //
+  // .trim() é defensivo: um espaço ou quebra de linha a mais colado na env
+  // var (fácil de acontecer copiando de um painel/chat) vira caractere
+  // inválido no header Access-Control-Allow-Origin e quebra TODA requisição
+  // com CORS — silencioso até alguém tentar logar do front e ver 500 no ar.
   app.enableCors({
-    origin: process.env.FRONTEND_ORIGIN,
+    origin: process.env.FRONTEND_ORIGIN?.trim(),
     credentials: true,
   });
 
