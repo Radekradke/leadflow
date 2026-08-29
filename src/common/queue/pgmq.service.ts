@@ -48,7 +48,7 @@ export class PgmqService {
       { msg_id: bigint; read_ct: number; enqueued_at: Date; message: T }[]
     >`
       SELECT msg_id, read_ct, enqueued_at, message
-      FROM pgmq.read(${queueName}, ${visibilitySeconds}, ${qty})
+      FROM pgmq.read(${queueName}, ${visibilitySeconds}::int, ${qty}::int)
     `;
     return rows.map((r) => ({
       msgId: Number(r.msg_id),
