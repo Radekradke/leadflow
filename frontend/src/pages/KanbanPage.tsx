@@ -38,17 +38,39 @@ export default function KanbanPage() {
   const toast = useToast();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
+  const KANBAN_KEY = ['leads', 'kanban'] as const;
+
   // Puxa um lote grande para montar o quadro (paginação simples server-side).
   const { data, isLoading } = useQuery({
-    queryKey: ['leads', 'kanban'],
+    queryKey: KANBAN_KEY,
     queryFn: () => api.get<Paginated<Lead>>('/leads?page=1&pageSize=100'),
   });
 
   const move = useMutation({
     mutationFn: ({ id, to, reason }: { id: string; to: LeadStatus; reason?: string }) =>
       api.post(`/leads/${id}/status`, { status: to, reason }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['leads'] }),
-    onError: (e: Error) => toast(e.message),
+    // Otimista: move o card na hora, sem esperar a rede — antes disso, toda
+    // troca de coluna invalidava os 100 leads inteiros e esperava recarregar
+    // do zero antes do card "assentar" (era o que parecia lento no funil).
+    // Reconciliar com o servidor ainda acontece (onSettled), só não trava a
+    // interação esperando por isso.
+    onMutate: async ({ id, to }) => {
+      await qc.cancelQueries({ queryKey: KANBAN_KEY });
+      const previous = qc.getQueryData<Paginated<Lead>>(KANBAN_KEY);
+      if (previous) {
+        qc.setQueryData<Paginated<Lead>>(KANBAN_KEY, {
+          ...previous,
+          items: previous.items.map((l) => (l.id === id ? { ...l, status: to } : l)),
+        });
+      }
+      return { previous };
+    },
+    onError: (e: Error, _vars, ctx) => {
+      // Reverte o card pra coluna original — a transição não foi aceita.
+      if (ctx?.previous) qc.setQueryData(KANBAN_KEY, ctx.previous);
+      toast(e.message);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: KANBAN_KEY }),
   });
 
   function onDragEnd(e: DragEndEvent) {

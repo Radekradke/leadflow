@@ -530,6 +530,14 @@ model Lead {
   @@index([status])
   @@index([currentQueueId])
   @@index([campaignId])
+  // Compostos: cobrem as consultas reais de listagem (funil/kanban e a
+  // lista de leads), que sempre filtram por tenant e OU ordenam por data
+  // OU filtram por status — um índice só em cada coluna não serve pra
+  // essa combinação, o Postgres teria que filtrar por um e depois
+  // varrer/ordenar o resto. Sem efeito ainda com poucos leads, mas isso
+  // piora sozinho conforme o volume cresce.
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status])
 }
 
 // ── ATRIBUIÇÃO (histórico — o CORAÇÃO) ──────────────────────
