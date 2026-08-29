@@ -20,6 +20,7 @@ import { QueueModule } from './modules/queues/queue.module';
 import { TaskModule } from './modules/tasks/task.module';
 import { TransferModule } from './modules/transfers/transfer.module';
 import { UserModule } from './modules/users/user.module';
+import { WorkerModule } from './worker/worker.module';
 
 /**
  * Raiz da aplicação. A ordem de montagem importa:
@@ -58,6 +59,7 @@ import { UserModule } from './modules/users/user.module';
     DistributionModule,
     TransferModule,
     DashboardModule,
+    WorkerModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
